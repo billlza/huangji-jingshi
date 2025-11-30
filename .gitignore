@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Node
+**/node_modules/
+**/.pnp
+**/.pnp.js
+**/dist/
+**/.next/
+
+# Rust
+**/target/
+
+# Logs
+**/*.log
+
+# Env
+.env
+.env.*
+
+# Editor
+.idea/
+.vscode/

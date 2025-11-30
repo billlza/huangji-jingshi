@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: hjjs-backend
+    env: production
+    rootDir: huangji-jingshi-web
+    buildCommand: cargo build --release
+    startCommand: ./target/release/backend
+    autoDeploy: true
+
+  - type: static_site
+    name: hjjs-frontend
+    rootDir: huangji-jingshi-web/frontend
+    buildCommand: npm ci && npm run build
+    publishPath: dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_BACKEND_URL
+        value: https://hjjs-backend.onrender.com
