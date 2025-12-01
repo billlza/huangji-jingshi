@@ -1,0 +1,13 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "角宿",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [[[ -10, -5 ], [ 10, 5 ]]]
+      }
+    }
+  ]
+}

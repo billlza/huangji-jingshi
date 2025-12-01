@@ -1,6 +1,6 @@
 use axum::{
-    routing::get,
-    Json, Router, extract::Query,
+    routing::{get, post},
+    Json, Router, extract::{Query, Path},
 };
 use axum::response::IntoResponse;
 use axum::http::HeaderValue;
@@ -17,6 +17,8 @@ use std::io::Write;
 use std::env;
 use reqwest::Client;
 use tokio::task;
+use sha2::{Sha256, Digest};
+use serde_json::json;
 
 #[tokio::main]
 async fn main() {
@@ -47,6 +49,9 @@ async fn main() {
         let _ = load_history_data(abs_hist);
     }
 
+    // 加载天文数据哈希清单
+    init_celestial_hashes();
+
     // 允许 CORS
     let cors = CorsLayer::permissive();
 
@@ -60,6 +65,11 @@ async fn main() {
         .route("/api/timeline", get(get_timeline))
         .route("/api/history", get(get_history))
         .route("/api/history/related", get(get_related_history))
+        .route("/api/celestial/data/*path", get(celestial_data))
+        .route("/api/celestial/cache/index", get(get_cache_index))
+        .route("/api/celestial/cache/preload", post(preload_cache))
+        .route("/api/celestial/cache/clear", post(clear_cache))
+        .route("/api/settings/sky", get(get_sky_settings).post(update_sky_settings))
         .route("/api/history/import-excel", get(import_history_excel))
         .route("/api/mapping/import-excel", get(import_mapping_excel))
         .route("/api/mapping/import-json", get(import_mapping_json))
@@ -255,6 +265,9 @@ struct HistoryQuery {
 }
 
 static HISTORY_STORE: Lazy<RwLock<Vec<HistoryEvent>>> = Lazy::new(|| RwLock::new(Vec::new()));
+#[derive(Clone, Serialize, Deserialize)]
+struct SkySettings { show_const: bool, show_xiu: bool, zh_planet_names: bool, culture: String }
+static SKY_SETTINGS: Lazy<RwLock<SkySettings>> = Lazy::new(|| RwLock::new(SkySettings { show_const: true, show_xiu: true, zh_planet_names: true, culture: "hj".to_string() }));
 #[derive(Clone)]
 struct TzCacheEntry {
     zone_name: Option<String>,
@@ -262,6 +275,15 @@ struct TzCacheEntry {
     expires_at: i64,
 }
 static TIMEZONE_CACHE: Lazy<RwLock<HashMap<String, TzCacheEntry>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+
+static CELESTIAL_HASH_CN: &str = "d5558cd419c8d46bdc958064cb97f963d1ea793866414c025906ec15033512ed";
+static CELESTIAL_HASH_STARS_6: &str = "0297b8fa3adfbce1dc26566f61c4abcc1df4f29c6a28729ca06b56d1c6d25602";
+static CELESTIAL_HASH_CONSTELLATIONS: &str = "ab4ae692027cbc042c0d6791a84456a65eb7c55656107fd00c58ff6e55d4d8b2";
+static CELESTIAL_HASH_CONSTELLATIONS_LINES: &str = "294f66bef5d5cf50b1e17f16d2efa1d97a15131612c68dd935adef6e7373e13c";
+static CELESTIAL_HASH_CONSTELLATIONS_BOUNDS: &str = "f2e2687af6b20b24567879f838c21874d412efcc93ecc1966be07e78431cc196";
+static CELESTIAL_HASH_PLANETS: &str = "5fca7ea95880f6feeaab75f306a058aa36f86deedd45ec82cd37e48d20899953";
+static CELESTIAL_HASH_MW: &str = "aee221a7a0e879418e685de00c3e68fbdfac5667c0a8aab74929ef9cf4aab4fb";
+static CELESTIAL_HASHES: Lazy<RwLock<HashMap<String, String>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
 fn load_history_data(path: &str) -> anyhow::Result<()> {
     let file = File::open(path)?;
@@ -273,6 +295,406 @@ fn load_history_data(path: &str) -> anyhow::Result<()> {
     *store = wrapper.events;
     println!("Loaded {} history events.", store.len());
     Ok(())
+}
+
+#[axum::debug_handler]
+async fn celestial_data(Path(path): Path<String>) -> axum::response::Response {
+    use axum::http::StatusCode;
+    let clean = path.trim_start_matches('/');
+    let allowed = [
+        "cultures/cn.json",
+        "cultures/hj.json",
+        "stars.6.json",
+        "mw.json",
+        "constellations.json",
+        "constellations.lines.json",
+        "constellations.bounds.json",
+        "planets.json",
+        "constellations.cn.json",
+        "constellations.lines.cn.json",
+        "constellations.bounds.cn.json",
+        "starnames.cn.json",
+        "dsonames.cn.json",
+        "planets.cn.json",
+    ];
+    if !allowed.contains(&clean) && !clean.starts_with("cultures/") {
+        return axum::response::Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(axum::body::Body::from("Unsupported path"))
+            .unwrap();
+    }
+
+    let cache_root = "backend/data/celestial";
+    let cache_path = format!("{}/{}", cache_root, clean);
+    // 1) Serve from backend cache if present
+    if let Ok(mut f) = File::open(&cache_path) {
+        use std::io::Read;
+        let mut buf = Vec::new();
+        if f.read_to_end(&mut buf).is_ok() {
+            if verify_hash(&clean, &buf) {
+                // try to read index entry for meta
+                let entry = get_index_entry(&clean);
+                let mut hasher = Sha256::new();
+                hasher.update(&buf);
+                let got = format!("{:x}", hasher.finalize());
+                let fallback_etag = format!("W/\"sha256:{}\"", got);
+                let etag = entry.as_ref().and_then(|e| e.etag.clone()).or(Some(fallback_etag));
+                let last_mod = entry.as_ref().and_then(|e| e.last_modified.clone());
+                return ok_json_meta(buf, etag, last_mod);
+            }
+        }
+    }
+
+    // 2) Dynamic CN generators with guaranteed availability
+    if clean == "constellations.cn.json" { return ok_json(gen_cn_constellations_points()); }
+    if clean == "constellations.lines.cn.json" { return ok_json(gen_cn_constellations_lines()); }
+    if clean == "constellations.bounds.cn.json" { return ok_json(gen_cn_constellations_bounds()); }
+    if clean == "starnames.cn.json" { return ok_json(gen_cn_starnames()); }
+    if clean == "dsonames.cn.json" { return ok_json(gen_cn_dsonames()); }
+
+    // 3) Try local frontend public data
+    let local_candidates = [
+        // Dev/public paths
+        format!("frontend/public/data/{}", clean),
+        format!("huangji-jingshi-web/frontend/public/data/{}", clean),
+        format!("./frontend/public/data/{}", clean),
+        // Built dist paths
+        format!("frontend/dist/data/{}", clean),
+        format!("huangji-jingshi-web/frontend/dist/data/{}", clean),
+        format!("./frontend/dist/data/{}", clean),
+    ];
+    for p in &local_candidates {
+        if let Ok(mut f) = File::open(p) {
+            use std::io::Read;
+            let mut buf = Vec::new();
+            if f.read_to_end(&mut buf).is_ok() {
+                if verify_hash(&clean, &buf) {
+                    let mut hasher = Sha256::new();
+                    hasher.update(&buf);
+                    let got = format!("{:x}", hasher.finalize());
+                    let etag = Some(format!("W/\"sha256:{}\"", got));
+                    return ok_json_meta(buf, etag, None);
+                }
+            }
+        }
+    }
+
+    // 4) Remote fetch (if available)
+
+    let client = Client::new();
+    let mut roots = get_env_roots();
+    if roots.is_empty() {
+        roots = vec![
+            "https://raw.githubusercontent.com/ofrohn/celestial/master/data/".to_string(),
+            "https://cdn.jsdelivr.net/gh/ofrohn/celestial@master/data/".to_string(),
+            "https://fastly.jsdelivr.net/gh/ofrohn/celestial@master/data/".to_string(),
+            "https://ofrohn.github.io/data/".to_string(),
+        ];
+    }
+    for r in roots.iter() {
+        let url = format!("{}{}", r, clean);
+        if let Ok(resp) = client.get(url).send().await {
+            if resp.status().is_success() {
+                let headers_clone = resp.headers().clone();
+                if let Ok(bytes) = resp.bytes().await {
+                    let buf = bytes.to_vec();
+                    if !verify_hash(&clean, &buf) { continue; }
+                    let mut hasher = Sha256::new();
+                    hasher.update(&buf);
+                    let got = format!("{:x}", hasher.finalize());
+                    // write-through cache
+                    if let Some(parent) = std::path::Path::new(&cache_path).parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    let _ = std::fs::write(&cache_path, &buf);
+                    let etag_hdr = headers_clone.get("etag").and_then(|h| h.to_str().ok()).map(|s| s.to_string());
+                    let last_mod_hdr = headers_clone.get("last-modified").and_then(|h| h.to_str().ok()).map(|s| s.to_string());
+                    update_cache_index(&clean, &got, r, buf.len(), etag_hdr.clone(), last_mod_hdr.clone());
+                    let etag = etag_hdr.or(Some(format!("W/\"sha256:{}\"", got)));
+                    return ok_json_meta(buf, etag, last_mod_hdr);
+                }
+            }
+        }
+    }
+    axum::response::Response::builder()
+        .status(StatusCode::BAD_GATEWAY)
+        .body(axum::body::Body::from("Bad Gateway: celestial data unavailable"))
+        .unwrap()
+}
+
+fn ok_json_meta(buf: Vec<u8>, etag: Option<String>, last_modified: Option<String>) -> axum::response::Response {
+    use axum::http::header;
+    let mut builder = axum::response::Response::builder()
+        .status(axum::http::StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/json");
+    if let Some(e) = etag { if let Ok(hv) = HeaderValue::from_str(&e) { builder = builder.header(header::ETAG, hv); } }
+    if let Some(lm) = last_modified { if let Ok(hv) = HeaderValue::from_str(&lm) { builder = builder.header(header::LAST_MODIFIED, hv); } }
+    builder.body(axum::body::Body::from(buf)).unwrap()
+}
+
+#[allow(dead_code)]
+fn ok_json(buf: Vec<u8>) -> axum::response::Response { ok_json_meta(buf, None, None) }
+
+fn verify_hash(path: &str, buf: &[u8]) -> bool {
+    fn expected_hash(path: &str) -> Option<String> {
+        let store = CELESTIAL_HASHES.read().unwrap();
+        if let Some(v) = store.get(path) { return Some(v.clone()); }
+        if path.starts_with("cultures/") { return None; }
+        match path {
+            "stars.6.json" => Some(CELESTIAL_HASH_STARS_6.to_string()),
+            "constellations.json" => Some(CELESTIAL_HASH_CONSTELLATIONS.to_string()),
+            "constellations.lines.json" => Some(CELESTIAL_HASH_CONSTELLATIONS_LINES.to_string()),
+            "constellations.bounds.json" => Some(CELESTIAL_HASH_CONSTELLATIONS_BOUNDS.to_string()),
+            "planets.json" => Some(CELESTIAL_HASH_PLANETS.to_string()),
+            "mw.json" => Some(CELESTIAL_HASH_MW.to_string()),
+            _ => None,
+        }
+    }
+    if let Some(exp) = expected_hash(path) {
+        let mut hasher = Sha256::new();
+        hasher.update(buf);
+        let got = format!("{:x}", hasher.finalize());
+        got == exp
+    } else { true }
+}
+
+fn ecl_to_eq(lambda_deg: f64, beta_deg: f64) -> (f64, f64) {
+    let eps = 23.43929111f64.to_radians();
+    let lam = lambda_deg.to_radians();
+    let beta = beta_deg.to_radians();
+    let y = lam.sin() * eps.cos() - beta.tan() * eps.sin();
+    let x = lam.cos();
+    let alpha = y.atan2(x);
+    let delta = (beta.sin() * eps.cos() + beta.cos() * eps.sin() * lam.sin()).asin();
+    let mut ra = alpha.to_degrees();
+    if ra > 180.0 { ra -= 360.0; }
+    if ra < -180.0 { ra += 360.0; }
+    let dec = delta.to_degrees();
+    (ra, dec)
+}
+
+fn gen_cn_constellations_points() -> Vec<u8> {
+    let mansions = vec![
+        "角","亢","氐","房","心","尾","箕","斗",
+        "牛","女","虚","危","室","壁","奎","娄",
+        "胃","昴","毕","觜","参","井","鬼","柳",
+        "星","张","翼","轸"
+    ];
+    let seg = 360.0 / mansions.len() as f64;
+    let mut features = Vec::new();
+    for (i, name) in mansions.iter().enumerate() {
+        let lam = (i as f64 + 0.5) * seg;
+        let (ra, dec) = ecl_to_eq(lam, 0.0);
+        let feat = json!({
+            "type": "Feature",
+            "id": name,
+            "properties": { "name": name, "desig": name, "rank": i + 1 },
+            "geometry": { "type": "Point", "coordinates": [ra, dec] }
+        });
+        features.push(feat);
+    }
+    // 三垣中心点（近似）
+    let sanyuan = vec![
+        ("紫微垣", 0.0, 75.0),
+        ("太微垣", 195.0, 22.0),
+        ("天市垣", 270.0, 30.0),
+    ];
+    for (name, ra, dec) in sanyuan.into_iter() {
+        let feat = json!({
+            "type": "Feature",
+            "id": name,
+            "properties": { "name": name, "desig": name },
+            "geometry": { "type": "Point", "coordinates": [adjust_ra(ra), dec] }
+        });
+        features.push(feat);
+    }
+    json!({ "type": "FeatureCollection", "features": features }).to_string().into_bytes()
+}
+
+fn gen_cn_constellations_lines() -> Vec<u8> {
+    let n = 28usize;
+    let seg = 360.0 / n as f64;
+    let mut features = Vec::new();
+    for i in 0..n {
+        let lam = i as f64 * seg;
+        let (ra1, dec1) = ecl_to_eq(lam, -1.0);
+        let (ra2, dec2) = ecl_to_eq(lam, 1.0);
+        let name = match i {
+            0 => "角", 1 => "亢", 2 => "氐", 3 => "房", 4 => "心", 5 => "尾", 6 => "箕", 7 => "斗",
+            8 => "牛", 9 => "女", 10 => "虚", 11 => "危", 12 => "室", 13 => "壁", 14 => "奎", 15 => "娄",
+            16 => "胃", 17 => "昴", 18 => "毕", 19 => "觜", 20 => "参", 21 => "井", 22 => "鬼", 23 => "柳",
+            24 => "星", 25 => "张", 26 => "翼", _ => "轸"
+        };
+        let feat = json!({
+            "type": "Feature",
+            "id": name,
+            "geometry": { "type": "MultiLineString", "coordinates": [[[ra1, dec1], [ra2, dec2]]] }
+        });
+        features.push(feat);
+    }
+    json!({ "type": "FeatureCollection", "features": features }).to_string().into_bytes()
+}
+
+fn gen_cn_constellations_bounds() -> Vec<u8> {
+    let n = 28usize;
+    let seg = 360.0 / n as f64;
+    let mut features = Vec::new();
+    for i in 0..n {
+        let lam1 = i as f64 * seg;
+        let lam2 = (i as f64 + 1.0) * seg;
+        let mut coords = Vec::new();
+        for k in 0..=8 { let t = k as f64 / 8.0; let lam = lam1 + (lam2 - lam1) * t; let (ra, dec) = ecl_to_eq(lam, 1.0); coords.push(vec![ra, dec]); }
+        for k in (0..=8).rev() { let t = k as f64 / 8.0; let lam = lam1 + (lam2 - lam1) * t; let (ra, dec) = ecl_to_eq(lam, -1.0); coords.push(vec![ra, dec]); }
+        if let Some(first) = coords.first().cloned() { coords.push(first); }
+        let name = match i {
+            0 => "角", 1 => "亢", 2 => "氐", 3 => "房", 4 => "心", 5 => "尾", 6 => "箕", 7 => "斗",
+            8 => "牛", 9 => "女", 10 => "虚", 11 => "危", 12 => "室", 13 => "壁", 14 => "奎", 15 => "娄",
+            16 => "胃", 17 => "昴", 18 => "毕", 19 => "觜", 20 => "参", 21 => "井", 22 => "鬼", 23 => "柳",
+            24 => "星", 25 => "张", 26 => "翼", _ => "轸"
+        };
+        let feat = json!({
+            "type": "Feature",
+            "id": name,
+            "geometry": { "type": "Polygon", "coordinates": [coords] }
+        });
+        features.push(feat);
+    }
+    // 三垣近似边界（紫微：极区环；太微/天市：矩形）
+    // 紫微垣：dec=70°环
+    let mut circle: Vec<Vec<f64>> = Vec::new();
+    for k in 0..=36 { let t = k as f64 / 36.0; let ra = adjust_ra(t * 360.0); circle.push(vec![ra, 70.0]); }
+    features.push(json!({ "type": "Feature", "id": "紫微垣", "geometry": { "type": "Polygon", "coordinates": [circle] } }));
+    // 太微垣：RA 150..220, Dec 10..35
+    let rect_tw = vec![ vec![adjust_ra(150.0), 10.0], vec![adjust_ra(220.0), 10.0], vec![adjust_ra(220.0), 35.0], vec![adjust_ra(150.0), 35.0], vec![adjust_ra(150.0), 10.0] ];
+    features.push(json!({ "type": "Feature", "id": "太微垣", "geometry": { "type": "Polygon", "coordinates": [rect_tw] } }));
+    // 天市垣：RA 240..300, Dec 15..45
+    let rect_ts = vec![ vec![adjust_ra(240.0), 15.0], vec![adjust_ra(300.0), 15.0], vec![adjust_ra(300.0), 45.0], vec![adjust_ra(240.0), 45.0], vec![adjust_ra(240.0), 15.0] ];
+    features.push(json!({ "type": "Feature", "id": "天市垣", "geometry": { "type": "Polygon", "coordinates": [rect_ts] } }));
+    json!({ "type": "FeatureCollection", "features": features }).to_string().into_bytes()
+}
+
+fn adjust_ra(ra_deg: f64) -> f64 { if ra_deg > 180.0 { ra_deg - 360.0 } else { ra_deg } }
+
+fn gen_cn_starnames() -> Vec<u8> {
+    // 选取皇极体系常用亮星与星官代表：北斗七星、织女/牛郎、参宿七、角宿一、心宿二、北极星、南斗六星（近似）
+    let mut features = Vec::new();
+    let add = |features: &mut Vec<serde_json::Value>, name: &str, ra_deg: f64, dec_deg: f64| {
+        let feat = json!({
+            "type": "Feature",
+            "id": name,
+            "properties": { "name": name },
+            "geometry": { "type": "Point", "coordinates": [adjust_ra(ra_deg), dec_deg] }
+        });
+        features.push(feat);
+    };
+    // 北斗七星（Dubhe, Merak, Phecda, Megrez, Alioth, Mizar, Alkaid）
+    add(&mut features, "天枢", 165.75, 61.75);
+    add(&mut features, "天璇", 165.5, 56.4);
+    add(&mut features, "天玑", 178.2, 53.7);
+    add(&mut features, "天权", 183.9, 57.0);
+    add(&mut features, "玉衡", 193.5, 55.9);
+    add(&mut features, "开阳", 201.3, 54.9);
+    add(&mut features, "摇光", 210.0, 49.3);
+    // 织女 / 牛郎
+    add(&mut features, "织女", 279.2, 38.8);
+    add(&mut features, "牵牛", 297.7, 8.9);
+    // 参宿七（Betelgeuse），角宿一（Spica），心宿二（Antares），北极星（Polaris）
+    add(&mut features, "参宿七", 88.8, 7.4);
+    add(&mut features, "角宿一", 201.9, -11.2);
+    add(&mut features, "心宿二", 247.2, -26.4);
+    add(&mut features, "北极星", 37.9, 89.3);
+    // 南斗六星（近似）
+    add(&mut features, "南斗一", 276.0, -30.0);
+    add(&mut features, "南斗二", 278.0, -31.0);
+    add(&mut features, "南斗三", 280.0, -32.0);
+    add(&mut features, "南斗四", 282.0, -33.0);
+    add(&mut features, "南斗五", 284.0, -34.0);
+    add(&mut features, "南斗六", 286.0, -35.0);
+    json!({ "type": "FeatureCollection", "features": features }).to_string().into_bytes()
+}
+
+fn gen_cn_dsonames() -> Vec<u8> { json!({ "type": "FeatureCollection", "features": [] }).to_string().into_bytes() }
+
+fn get_env_roots() -> Vec<String> {
+    let raw = env::var("CELESTIAL_DATA_ROOTS").unwrap_or_default();
+    raw.split(|c| c == ',' || c == ';' || c == '|')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct CacheEntry { path: String, sha256: String, source: String, fetched_at: i64, size: usize, etag: Option<String>, last_modified: Option<String> }
+#[derive(Serialize, Deserialize, Clone)]
+struct CacheIndex { files: Vec<CacheEntry> }
+
+fn update_cache_index(path: &str, sha256: &str, source: &str, size: usize, etag: Option<String>, last_modified: Option<String>) {
+    let idx_path = "backend/data/celestial/index.json";
+    let mut current: CacheIndex = std::fs::read(idx_path)
+        .ok()
+        .and_then(|b| serde_json::from_slice::<CacheIndex>(&b).ok())
+        .unwrap_or(CacheIndex { files: Vec::new() });
+    let ts = Utc::now().timestamp();
+    let mut replaced = false;
+    for e in current.files.iter_mut() {
+        if e.path == path {
+            e.sha256 = sha256.to_string();
+            e.source = source.to_string();
+            e.fetched_at = ts;
+            e.size = size;
+            e.etag = etag.clone();
+            e.last_modified = last_modified.clone();
+            replaced = true;
+            break;
+        }
+    }
+    if !replaced {
+        current.files.push(CacheEntry { path: path.to_string(), sha256: sha256.to_string(), source: source.to_string(), fetched_at: ts, size, etag, last_modified });
+    }
+    if let Some(parent) = std::path::Path::new(idx_path).parent() { let _ = std::fs::create_dir_all(parent); }
+    let _ = std::fs::write(idx_path, serde_json::to_vec(&current).unwrap_or_default());
+}
+
+#[axum::debug_handler]
+async fn get_cache_index() -> Json<CacheIndex> {
+    let idx_path = "backend/data/celestial/index.json";
+    let current: CacheIndex = std::fs::read(idx_path)
+        .ok()
+        .and_then(|b| serde_json::from_slice::<CacheIndex>(&b).ok())
+        .unwrap_or(CacheIndex { files: Vec::new() });
+    Json(current)
+}
+
+#[axum::debug_handler]
+async fn clear_cache() -> Json<bool> {
+    let root = std::path::Path::new("backend/data/celestial");
+    if root.exists() {
+        let _ = std::fs::remove_dir_all(root);
+    }
+    let _ = std::fs::create_dir_all(root);
+    let _ = std::fs::write("backend/data/celestial/index.json", serde_json::to_vec(&CacheIndex { files: Vec::new() }).unwrap_or_default());
+    Json(true)
+}
+
+#[axum::debug_handler]
+async fn get_sky_settings() -> Json<SkySettings> {
+    let s = SKY_SETTINGS.read().unwrap().clone();
+    Json(s)
+}
+
+#[axum::debug_handler]
+async fn update_sky_settings(Json(payload): Json<SkySettings>) -> Json<SkySettings> {
+    let mut s = SKY_SETTINGS.write().unwrap();
+    *s = payload.clone();
+    Json(payload)
+}
+
+fn get_index_entry(path: &str) -> Option<CacheEntry> {
+    let idx_path = "backend/data/celestial/index.json";
+    std::fs::read(idx_path)
+        .ok()
+        .and_then(|b| serde_json::from_slice::<CacheIndex>(&b).ok())
+        .and_then(|idx| idx.files.into_iter().find(|e| e.path == path))
 }
 
 async fn get_history(Query(q): Query<HistoryQuery>) -> axum::response::Response {
@@ -737,4 +1159,103 @@ async fn get_related_history(Query(q): Query<RelatedQuery>) -> Json<Vec<RelatedI
         }
     }
     Json(items)
+}
+fn init_celestial_hashes() {
+    let path = "backend/data/celestial/hashes.json";
+    let mut map: HashMap<String, String> = HashMap::new();
+    if let Ok(bytes) = std::fs::read(path) {
+        if let Ok(json) = serde_json::from_slice::<HashMap<String, String>>(&bytes) {
+            map = json;
+        }
+    }
+    if map.is_empty() {
+        map.insert("cultures/cn.json".to_string(), CELESTIAL_HASH_CN.to_string());
+        map.insert("stars.6.json".to_string(), CELESTIAL_HASH_STARS_6.to_string());
+        map.insert("constellations.json".to_string(), CELESTIAL_HASH_CONSTELLATIONS.to_string());
+        map.insert("constellations.lines.json".to_string(), CELESTIAL_HASH_CONSTELLATIONS_LINES.to_string());
+        map.insert("constellations.bounds.json".to_string(), CELESTIAL_HASH_CONSTELLATIONS_BOUNDS.to_string());
+        map.insert("planets.json".to_string(), CELESTIAL_HASH_PLANETS.to_string());
+        map.insert("mw.json".to_string(), CELESTIAL_HASH_MW.to_string());
+        if let Some(parent) = std::path::Path::new(path).parent() { let _ = std::fs::create_dir_all(parent); }
+        let _ = std::fs::write(path, serde_json::to_vec(&map).unwrap_or_default());
+    }
+    {
+        let mut store = CELESTIAL_HASHES.write().unwrap();
+        *store = map;
+    }
+}
+#[axum::debug_handler]
+async fn preload_cache() -> Json<bool> {
+    use axum::http::StatusCode;
+    let allowed = [
+        "stars.6.json",
+        "constellations.json",
+        "constellations.lines.json",
+        "constellations.bounds.json",
+        "planets.json",
+        "mw.json",
+        // cultures kept optional; will try cn and iau if available
+    ];
+    let mut ok = true;
+    let client = Client::new();
+    let mut roots = get_env_roots();
+    if roots.is_empty() {
+        roots = vec![
+            "https://raw.githubusercontent.com/ofrohn/celestial/master/data/".to_string(),
+            "https://cdn.jsdelivr.net/gh/ofrohn/celestial@master/data/".to_string(),
+            "https://fastly.jsdelivr.net/gh/ofrohn/celestial@master/data/".to_string(),
+            "https://ofrohn.github.io/data/".to_string(),
+        ];
+    }
+    for clean in allowed.iter() {
+        let mut fetched = false;
+        for r in roots.iter() {
+            let url = format!("{}{}", r, clean);
+            if let Ok(resp) = client.get(url).send().await {
+                let headers_clone = resp.headers().clone();
+                if resp.status() == StatusCode::OK {
+                    if let Ok(bytes) = resp.bytes().await {
+                        let buf = bytes.to_vec();
+                        if !verify_hash(clean, &buf) { continue; }
+                        let cache_root = "backend/data/celestial";
+                        let cache_path = format!("{}/{}", cache_root, clean);
+                        if let Some(parent) = std::path::Path::new(&cache_path).parent() { let _ = std::fs::create_dir_all(parent); }
+                        let _ = std::fs::write(&cache_path, &buf);
+                        let mut hasher = Sha256::new(); hasher.update(&buf); let got = format!("{:x}", hasher.finalize());
+                        let etag_hdr = headers_clone.get("etag").and_then(|h| h.to_str().ok()).map(|s| s.to_string());
+                        let last_mod_hdr = headers_clone.get("last-modified").and_then(|h| h.to_str().ok()).map(|s| s.to_string());
+                        update_cache_index(clean, &got, r, buf.len(), etag_hdr, last_mod_hdr);
+                        fetched = true; break;
+                    }
+                }
+            }
+        }
+        ok &= fetched;
+    }
+    // optional cultures
+    for culture in ["cultures/cn.json", "cultures/iau.json"].iter() {
+        let mut fetched = false;
+        for r in roots.iter() {
+            let url = format!("{}{}", r, culture);
+            if let Ok(resp) = client.get(url).send().await {
+                let headers_clone = resp.headers().clone();
+                if resp.status() == StatusCode::OK {
+                    if let Ok(bytes) = resp.bytes().await {
+                        let buf = bytes.to_vec();
+                        let cache_root = "backend/data/celestial";
+                        let cache_path = format!("{}/{}", cache_root, culture);
+                        if let Some(parent) = std::path::Path::new(&cache_path).parent() { let _ = std::fs::create_dir_all(parent); }
+                        let _ = std::fs::write(&cache_path, &buf);
+                        let mut hasher = Sha256::new(); hasher.update(&buf); let got = format!("{:x}", hasher.finalize());
+                        let etag_hdr = headers_clone.get("etag").and_then(|h| h.to_str().ok()).map(|s| s.to_string());
+                        let last_mod_hdr = headers_clone.get("last-modified").and_then(|h| h.to_str().ok()).map(|s| s.to_string());
+                        update_cache_index(culture, &got, r, buf.len(), etag_hdr, last_mod_hdr);
+                        fetched = true; break;
+                    }
+                }
+            }
+        }
+        ok &= fetched;
+    }
+    Json(ok)
 }

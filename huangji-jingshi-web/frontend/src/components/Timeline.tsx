@@ -53,7 +53,7 @@ const Timeline: React.FC<TimelineProps> = ({ currentYear, currentDatetime, onYea
       }
     };
     run();
-  }, [data?.current.hui.start_year, data?.current.hui.end_year, API_BASE]);
+  }, [data, API_BASE]);
 
   useEffect(() => {
     if (!data) return;

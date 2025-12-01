@@ -39,7 +39,7 @@ export default function Home() {
           基于北宋邵雍《皇极经世书》构建的数字化推演平台。
         </p>
 
-        <div className="flex flex-col sm:flex-row gap-8 w-full max-w-lg mx-auto">
+        <div className="flex flex-col sm:flex-row gap-8 w-full max-w-xl mx-auto">
           <Link 
             to="/tools" 
             className="group flex-1 flex items-center justify-center gap-3 btn-glass-primary px-8 py-4 rounded-full font-bold text-lg"
@@ -55,6 +55,14 @@ export default function Home() {
           >
             <BookOpen className="w-5 h-5 text-gold/80 group-hover:text-gold transition-colors" />
             <span>了解背景</span>
+          </Link>
+
+          <Link 
+            to="/about" 
+            className="group flex-1 flex items-center justify-center gap-3 btn-glass-secondary px-8 py-4 rounded-full font-medium text-lg"
+          >
+            <BookOpen className="w-5 h-5 text-gold/80 group-hover:text-gold transition-colors" />
+            <span>关于/数据来源</span>
           </Link>
         </div>
 

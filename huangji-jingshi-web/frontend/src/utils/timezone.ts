@@ -20,7 +20,7 @@ export function computeLocalOffset(date: Date, lat: number, lon: number): Timezo
 
 async function fetchRemoteOffset(date: Date, lat: number, lon: number): Promise<TimezoneResult | null> {
   try {
-    const base = import.meta.env.VITE_BACKEND_URL || '';
+    const base = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || '';
     const q = new URLSearchParams({
       datetime: date.toISOString(),
       lat: String(lat),

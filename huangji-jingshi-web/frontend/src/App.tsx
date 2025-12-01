@@ -4,6 +4,7 @@ import Home from './pages/Home';
 import Tools from './pages/Tools';
 import Story from './pages/Story';
 import Login from './pages/Login';
+import About from './pages/About';
 import './index.css';
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
         <Route path="/tools" element={<Tools />} />
         <Route path="/story" element={<Story />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/about" element={<About />} />
       </Routes>
     </BrowserRouter>
   )

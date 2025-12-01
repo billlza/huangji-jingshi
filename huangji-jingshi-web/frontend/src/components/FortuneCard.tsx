@@ -55,7 +55,7 @@ const FortuneCard: React.FC<FortuneCardProps> = ({ data, currentYear, onJumpToYe
       }
     };
     run();
-  }, [API_BASE, displayYear, yunRange?.start, yunRange?.end]);
+  }, [API_BASE, displayYear, yunRange]);
 
   return (
     <div className="space-y-6">

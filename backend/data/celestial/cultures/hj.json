@@ -1,0 +1,11 @@
+{
+  "id": "hj",
+  "constellations": {
+    "names": "constellations.cn.json",
+    "lines": "constellations.lines.cn.json",
+    "bounds": "constellations.bounds.cn.json"
+  },
+  "starnames": "starnames.cn.json",
+  "dsonames": "dsonames.cn.json",
+  "planets": "planets.cn.json"
+}

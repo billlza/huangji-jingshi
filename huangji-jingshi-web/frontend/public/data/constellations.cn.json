@@ -1,0 +1,18 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "1",
+      "properties": {
+        "name": "角宿",
+        "en": "Horn Mansion",
+        "pinyin": "Jiǎo xiù",
+        "desig": "角宿",
+        "rank": "1",
+        "display": [0, 0, 80]
+      },
+      "geometry": { "type": "Point", "coordinates": [0, 0] }
+    }
+  ]
+}
