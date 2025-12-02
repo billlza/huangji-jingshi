@@ -12,9 +12,9 @@ services:
       - key: RUST_LOG
         value: info
       - key: SUPABASE_URL
-        sync: false
+        value: https://nunotqruohnfoozorqiz.supabase.co
       - key: SUPABASE_KEY
-        sync: false
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51bm90cXJ1b2huZm9vem9ycWl6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDQ2NjY2MiwiZXhwIjoyMDgwMDQyNjYyfQ.a_-2C0z0jgAu3bD-BFBG4ONi1kKyz7fn4cnSlBlY-eE
 
   # 前端静态站点
   - type: static_site
