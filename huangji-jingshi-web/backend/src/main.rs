@@ -267,7 +267,7 @@ struct HistoryQuery {
 static HISTORY_STORE: Lazy<RwLock<Vec<HistoryEvent>>> = Lazy::new(|| RwLock::new(Vec::new()));
 #[derive(Clone, Serialize, Deserialize)]
 struct SkySettings { show_const: bool, show_xiu: bool, zh_planet_names: bool, culture: String }
-static SKY_SETTINGS: Lazy<RwLock<SkySettings>> = Lazy::new(|| RwLock::new(SkySettings { show_const: true, show_xiu: true, zh_planet_names: true, culture: "hj".to_string() }));
+static SKY_SETTINGS: Lazy<RwLock<SkySettings>> = Lazy::new(|| RwLock::new(SkySettings { show_const: true, show_xiu: true, zh_planet_names: true, culture: "cn".to_string() }));
 #[derive(Clone)]
 struct TzCacheEntry {
     zone_name: Option<String>,
@@ -304,7 +304,10 @@ async fn celestial_data(Path(path): Path<String>) -> axum::response::Response {
     let allowed = [
         "cultures/cn.json",
         "cultures/hj.json",
+        "cultures/huangji-stars.json",
         "stars.6.json",
+        "stars.8.json",
+        "stars.14.json",
         "mw.json",
         "constellations.json",
         "constellations.lines.json",
@@ -313,9 +316,16 @@ async fn celestial_data(Path(path): Path<String>) -> axum::response::Response {
         "constellations.cn.json",
         "constellations.lines.cn.json",
         "constellations.bounds.cn.json",
+        "starnames.json",
         "starnames.cn.json",
+        "dsos.json",
+        "dsos.bright.json",
+        "dsos.6.json",
+        "dsos.14.json",
+        "dsonames.json",
         "dsonames.cn.json",
         "planets.cn.json",
+        "lg.json",
     ];
     if !allowed.contains(&clean) && !clean.starts_with("cultures/") {
         return axum::response::Response::builder()
@@ -345,12 +355,7 @@ async fn celestial_data(Path(path): Path<String>) -> axum::response::Response {
         }
     }
 
-    // 2) Dynamic CN generators with guaranteed availability
-    if clean == "constellations.cn.json" { return ok_json(gen_cn_constellations_points()); }
-    if clean == "constellations.lines.cn.json" { return ok_json(gen_cn_constellations_lines()); }
-    if clean == "constellations.bounds.cn.json" { return ok_json(gen_cn_constellations_bounds()); }
-    if clean == "starnames.cn.json" { return ok_json(gen_cn_starnames()); }
-    if clean == "dsonames.cn.json" { return ok_json(gen_cn_dsonames()); }
+    // 2) Prefer local (frontend/public or dist) first
 
     // 3) Try local frontend public data
     let local_candidates = [
@@ -416,6 +421,12 @@ async fn celestial_data(Path(path): Path<String>) -> axum::response::Response {
             }
         }
     }
+    // 5) Dynamic CN generators as final fallback
+    if clean == "constellations.cn.json" { return ok_json(gen_cn_constellations_points()); }
+    if clean == "constellations.lines.cn.json" { return ok_json(gen_cn_constellations_lines()); }
+    if clean == "constellations.bounds.cn.json" { return ok_json(gen_cn_constellations_bounds()); }
+    if clean == "starnames.cn.json" { return ok_json(gen_cn_starnames()); }
+    if clean == "dsonames.cn.json" { return ok_json(gen_cn_dsonames()); }
     axum::response::Response::builder()
         .status(StatusCode::BAD_GATEWAY)
         .body(axum::body::Body::from("Bad Gateway: celestial data unavailable"))

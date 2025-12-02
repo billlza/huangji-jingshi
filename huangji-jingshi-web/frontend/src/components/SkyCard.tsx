@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { StarMap } from '../StarMap';
 import type { SkyResponse } from '../types';
 
@@ -12,6 +12,21 @@ interface SkyCardProps {
 }
 
 const SkyCard: React.FC<SkyCardProps> = ({ data, date, lat, lon, timezone, containerId }) => {
+  const [renameZh, setRenameZh] = useState<boolean>(true);
+  useEffect(() => {
+    const API_BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || '';
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE || ''}/api/settings/sky`);
+        if (r.ok) {
+          const s = await r.json() as { zh_planet_names: boolean };
+          setRenameZh(!!s.zh_planet_names);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, []);
+  const nameMap: Record<string, string> = { Sun: '太阳', Moon: '月亮', Mercury: '水星', Venus: '金星', Mars: '火星', Jupiter: '木星', Saturn: '土星' };
+  const rename = (n: string) => renameZh ? (nameMap[n] || n) : n;
   const sun = data.bodies.find(b => b.name === 'Sun');
   const moon = data.bodies.find(b => b.name === 'Moon');
   const planets = data.bodies.filter(b => !['Sun', 'Moon', 'Earth'].includes(b.name)).slice(0, 3);
@@ -46,19 +61,19 @@ const SkyCard: React.FC<SkyCardProps> = ({ data, date, lat, lon, timezone, conta
       <div className="bg-black/40 backdrop-blur-sm p-4 grid grid-cols-2 gap-4 text-xs font-mono border-t border-white/10">
          {sun && (
            <div className="flex justify-between items-center text-yellow-200/80">
-              <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-yellow-500"></span> Sun</span>
+              <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-yellow-500"></span> {rename('Sun')}</span>
               <span>Alt {sun.alt_deg.toFixed(1)}° / Az {sun.az_deg.toFixed(1)}°</span>
            </div>
          )}
          {moon && (
            <div className="flex justify-between items-center text-gray-300">
-              <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-gray-400"></span> Moon</span>
+              <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-gray-400"></span> {rename('Moon')}</span>
               <span>Alt {moon.alt_deg.toFixed(1)}° / Az {moon.az_deg.toFixed(1)}°</span>
            </div>
          )}
          {planets.map(p => (
            <div key={p.name} className="flex justify-between items-center text-cyan-300/70 col-span-2 sm:col-span-1">
-              <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span> {p.name}</span>
+              <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span> {rename(p.name)}</span>
               <span>Alt {p.alt_deg.toFixed(1)}°</span>
            </div>
          ))}

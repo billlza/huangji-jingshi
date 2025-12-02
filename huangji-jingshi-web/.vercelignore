@@ -1,0 +1,32 @@
+# 排除不必要的文件
+node_modules/
+target/
+.git/
+.vscode/
+.idea/
+*.log
+.DS_Store
+*.swp
+*.swo
+*~
+
+# 排除开发文件
+create-bucket.js
+setup-storage.js
+storage-policies*.sql
+STORAGE_SETUP.md
+QUICK_DEPLOY.md
+DEPLOY.md
+auto-deploy.sh
+deploy.sh
+
+# 排除后端文件（前端部署不需要）
+backend/
+huangji_core/
+Cargo.toml
+Cargo.lock
+
+# 排除其他
+*.md
+!README.md
+

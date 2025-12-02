@@ -5,10 +5,20 @@ import ControlPanel from '../components/ControlPanel';
 import FortuneCard from '../components/FortuneCard';
 import SkyCard from '../components/SkyCard';
 import Timeline from '../components/Timeline';
-import type { CombinedResponse } from '../types';
+import type { CombinedResponse, SkyResponse } from '../types';
 import { Link } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { resolveTimezoneOffset, resolveTimezoneOffsetSync } from '../utils/timezone';
+
+function safeDate(s: string | null | undefined) {
+  const d = new Date(s || '');
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
+function safeYear(s: string | null | undefined) {
+  const d = new Date(s || '');
+  return isNaN(d.getTime()) ? new Date().getFullYear() : d.getFullYear();
+}
 
 export default function Tools() {
   const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
@@ -55,6 +65,7 @@ export default function Tools() {
     const url = `${window.location.pathname}?${sp.toString()}`;
     window.history.replaceState({}, '', url);
 
+    const controller = new AbortController();
     const fetchData = async () => {
       setLoading(true);
       setError(null);
@@ -65,7 +76,7 @@ export default function Tools() {
           lon: params.lon.toString()
         });
         
-        const res = await fetch(`${API_BASE}/api/sky-and-fortune?${q}`);
+        const res = await fetch(`${API_BASE}/api/sky-and-fortune?${q}`, { signal: controller.signal, keepalive: true });
         if (!res.ok) {
           const errText = await res.text();
           throw new Error(errText || "Server Error");
@@ -78,7 +89,7 @@ export default function Tools() {
             lat: params.lat.toString(),
             lon: params.lon.toString()
           });
-          const res2 = await fetch(`${API_BASE}/api/sky-and-fortune?${q2}`);
+          const res2 = await fetch(`${API_BASE}/api/sky-and-fortune?${q2}`, { signal: controller.signal, keepalive: true });
           if (res2.ok) {
             const j2 = await res2.json();
             setCompareData(j2);
@@ -89,15 +100,19 @@ export default function Tools() {
           setCompareData(null);
         }
       } catch (err: unknown) {
-        console.error(err);
-        const msg = err instanceof Error ? err.message : '请求失败，请检查网络或参数';
-        setError(msg);
+        const isAbort = (err instanceof DOMException) && err.name === 'AbortError';
+        if (!isAbort) {
+          console.error(err);
+          const msg = err instanceof Error ? err.message : '请求失败，请检查网络或参数';
+          setError(msg);
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
+    return () => { /* 不主动 abort，避免预览环境产生 ERR_ABORTED */ };
   }, [params, compareMode, compareDatetime, API_BASE]);
 
   const handleCalculate = (newParams: { datetime: string; lat: number; lon: number }) => {
@@ -105,13 +120,13 @@ export default function Tools() {
   };
 
   const handleTimelineYearChange = (year: number) => {
-    const current = new Date(params.datetime);
+    const current = safeDate(params.datetime);
     current.setFullYear(year);
     setParams(prev => ({ ...prev, datetime: current.toISOString() }));
   };
 
   const handleJumpToYear = (year: number) => {
-    const target = new Date(params.datetime);
+    const target = safeDate(params.datetime);
     target.setFullYear(year);
     target.setMonth(0);
     target.setDate(1);
@@ -124,19 +139,19 @@ export default function Tools() {
   };
 
   // Calculate timezone offset for target location and datetime
-  const initialTz = resolveTimezoneOffsetSync(new Date(params.datetime), params.lat, params.lon).offsetHours;
+  const initialTz = resolveTimezoneOffsetSync(safeDate(params.datetime), params.lat, params.lon).offsetHours;
   const [timezoneOffset, setTimezoneOffset] = useState<number>(initialTz);
   const [compareTimezoneOffset, setCompareTimezoneOffset] = useState<number | null>(null);
 
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const preferRemote = sp.get('tz') === 'remote';
-    const mainDate = new Date(params.datetime);
+    const mainDate = safeDate(params.datetime);
     resolveTimezoneOffset(mainDate, params.lat, params.lon, preferRemote)
       .then((r) => setTimezoneOffset(r.offsetHours))
       .catch(() => setTimezoneOffset(0));
     if (compareMode && compareDatetime) {
-      const cmpDate = new Date(compareDatetime);
+      const cmpDate = safeDate(compareDatetime);
       resolveTimezoneOffset(cmpDate, params.lat, params.lon, preferRemote)
         .then((r) => setCompareTimezoneOffset(r.offsetHours))
         .catch(() => setCompareTimezoneOffset(null));
@@ -158,6 +173,9 @@ export default function Tools() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  const skyData: SkyResponse = (data?.sky) ?? ({ bodies: [], note: 'offline' } as SkyResponse);
+  const cmpSkyData: SkyResponse | null = compareMode ? ((compareData?.sky) ?? ({ bodies: [], note: 'offline' } as SkyResponse)) : null;
 
   return (
     <div className="relative min-h-screen bg-[#050508] text-white font-sans overflow-x-hidden">
@@ -245,82 +263,61 @@ export default function Tools() {
             {/* Timeline Navigation */}
             <div className="glass-panel rounded-3xl p-1 overflow-hidden">
               <Timeline 
-                  currentYear={new Date(params.datetime).getFullYear()} 
+                  currentYear={safeYear(params.datetime)} 
                   currentDatetime={params.datetime}
                   onYearChange={handleTimelineYearChange}
                   mapping={data?.fortune?.mapping_record}
               />
             </div>
 
-            {/* Skeleton State */}
-            {loading && !data && (
-              <div className="space-y-6">
-                 <div className="h-[400px] glass-panel rounded-3xl flex items-center justify-center text-gray-500 font-light tracking-widest animate-pulse">
-                    CALCULATING CELESTIAL POSITIONS...
-                 </div>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <div className="h-[500px] xl:h-[600px]">
+                <SkyCard 
+                  data={skyData}
+                  date={safeDate(params.datetime)}
+                  lat={params.lat}
+                  lon={params.lon}
+                  timezone={timezoneOffset}
+                  containerId="celestial-map"
+                />
               </div>
-            )}
-
-            {/* Data Display */}
-            {data && (
-              <>
-                {/* Top Row: Sky Map & Quick Info */}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                   <div className="h-[500px] xl:h-[600px]">
-                          <SkyCard 
-                             data={data.sky} 
-                             date={new Date(params.datetime)}
-                             lat={params.lat}
-                             lon={params.lon}
-                             timezone={timezoneOffset}
-                             containerId="celestial-map"
-                          />
-                   </div>
-                   
-                   {/* Fortune Card - Major Display */}
-                 <div>
-                     <FortuneCard 
-                       data={data.fortune} 
-                       currentYear={new Date(params.datetime).getFullYear()}
-                       onJumpToYear={handleJumpToYear}
-                     />
-                  </div>
-                   {compareMode && compareData && (
-                     <>
-                       <div className="h-[500px] xl:h-[600px]">
-                          <SkyCard 
-                             data={compareData.sky} 
-                             date={new Date(compareDatetime || params.datetime)}
-                             lat={params.lat}
-                             lon={params.lon}
-                             timezone={compareTimezoneOffset ?? timezoneOffset}
-                             containerId="celestial-map-compare"
-                          />
-                       </div>
-                       <div>
-                          <FortuneCard 
-                            data={compareData.fortune} 
-                            currentYear={new Date(compareDatetime || params.datetime).getFullYear()}
-                          />
-                       </div>
-                     </>
-                   )}
-                </div>
-                {compareMode && compareData && (
-                  <div className="mt-2 p-4 glass-panel rounded-2xl text-xs text-gray-400 font-mono flex justify-between">
-                    <span>对比年卦: {data.fortune.hexagram_major} → {compareData.fortune.hexagram_major}</span>
-                    <span>运: {data.fortune.yun} → {compareData.fortune.yun}</span>
-                    <span>世: {data.fortune.shi} → {compareData.fortune.shi}</span>
-                    <span>旬: {data.fortune.xun} → {compareData.fortune.xun}</span>
-                  </div>
+              <div>
+                {data && (
+                  <FortuneCard 
+                    data={data.fortune} 
+                    currentYear={safeYear(params.datetime)}
+                    onJumpToYear={handleJumpToYear}
+                  />
                 )}
-              </>
+              </div>
+            </div>
+
+            {compareMode && (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div className="h-[500px] xl:h-[600px]">
+                  <SkyCard 
+                    data={cmpSkyData ?? ({ bodies: [], note: 'offline' } as SkyResponse)} 
+                    date={safeDate(compareDatetime || params.datetime)}
+                    lat={params.lat}
+                    lon={params.lon}
+                    timezone={compareTimezoneOffset ?? timezoneOffset}
+                    containerId="celestial-map-compare"
+                  />
+                </div>
+                <div>
+                  {compareData && (
+                    <FortuneCard 
+                      data={compareData.fortune} 
+                      currentYear={safeYear(compareDatetime || params.datetime)}
+                    />
+                  )}
+                </div>
+              </div>
             )}
             
             {!data && !loading && !error && (
-               <div className="h-[400px] glass-panel rounded-3xl flex flex-col items-center justify-center text-gray-500 border-2 border-dashed border-white/5">
-                  <p className="text-xl font-serif tracking-widest mb-3 text-gold/50">等待指令</p>
-                  <p className="text-xs uppercase tracking-wider opacity-50">Ready for Calculation</p>
+               <div className="glass-panel rounded-3xl p-4 text-gray-400 text-xs">
+                  后端不可用，已显示离线星图（仅基础星空，无运势数据）。
                </div>
             )}
 

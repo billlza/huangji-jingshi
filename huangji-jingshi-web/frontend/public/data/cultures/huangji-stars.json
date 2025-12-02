@@ -1,0 +1,247 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "hj_polaris",
+      "properties": {
+        "name_cn": "北极一",
+        "name_hj": "紫微帝星",
+        "hip": 11767,
+        "mag": 2.0,
+        "gua": "坤",
+        "fenye": "中宫",
+        "note": "皇极经世中的帝座基准",
+        "tags": ["紫微", "中枢"],
+        "source_refs": [
+          "SIMBAD: Polaris (HIP 11767)",
+          "IAU: Polaris"
+        ]
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [37.9546, 89.2641]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_big_dipper_dubhe",
+      "properties": {
+        "name_cn": "天枢（北斗一）",
+        "name_hj": "天枢",
+        "hip": 54061,
+        "tags": ["北斗"],
+        "note": "北斗七星之一",
+        "source_refs": ["SIMBAD: Dubhe (HIP 54061)", "IAU: Alpha Ursae Majoris"]
+      },
+      "geometry": { "type": "Point" }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_big_dipper_merak",
+      "properties": {
+        "name_cn": "天璇（北斗二）",
+        "name_hj": "天璇",
+        "hip": 53910,
+        "tags": ["北斗"],
+        "note": "北斗七星之一",
+        "source_refs": ["SIMBAD: Merak (HIP 53910)", "IAU: Beta Ursae Majoris"]
+      },
+      "geometry": { "type": "Point" }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_big_dipper_phecda",
+      "properties": {
+        "name_cn": "天玑（北斗三）",
+        "name_hj": "天玑",
+        "hip": 58001,
+        "tags": ["北斗"],
+        "note": "北斗七星之一",
+        "source_refs": ["SIMBAD: Phecda (HIP 58001)", "IAU: Gamma Ursae Majoris"]
+      },
+      "geometry": { "type": "Point" }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_big_dipper_megrez",
+      "properties": {
+        "name_cn": "天权（北斗四）",
+        "name_hj": "天权",
+        "hip": 59774,
+        "tags": ["北斗"],
+        "note": "北斗七星之一",
+        "source_refs": ["SIMBAD: Megrez (HIP 59774)", "IAU: Delta Ursae Majoris"]
+      },
+      "geometry": { "type": "Point" }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_big_dipper_alioth",
+      "properties": {
+        "name_cn": "玉衡（北斗五）",
+        "name_hj": "玉衡",
+        "hip": 62956,
+        "tags": ["北斗"],
+        "note": "北斗七星之一",
+        "source_refs": ["SIMBAD: Alioth (HIP 62956)", "IAU: Epsilon Ursae Majoris"]
+      },
+      "geometry": { "type": "Point" }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_big_dipper_mizar",
+      "properties": {
+        "name_cn": "开阳（北斗六）",
+        "name_hj": "开阳",
+        "hip": 65378,
+        "tags": ["北斗"],
+        "note": "北斗七星之一",
+        "source_refs": ["SIMBAD: Mizar (HIP 65378)", "IAU: Zeta Ursae Majoris"]
+      },
+      "geometry": { "type": "Point" }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_big_dipper_alkaid",
+      "properties": {
+        "name_cn": "摇光（北斗七）",
+        "name_hj": "摇光",
+        "hip": 67301,
+        "tags": ["北斗"],
+        "note": "北斗七星之一",
+        "source_refs": ["SIMBAD: Alkaid (HIP 67301)", "IAU: Eta Ursae Majoris"]
+      },
+      "geometry": { "type": "Point" }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_vega",
+      "properties": {
+        "name_cn": "织女一",
+        "name_hj": "织女",
+        "hip": 91262,
+        "mag": 0.03,
+        "gua": "离",
+        "fenye": "女宿",
+        "note": "二十八宿女宿代表星",
+        "tags": ["二十八宿"],
+        "source_refs": ["SIMBAD: Vega (HIP 91262)", "IAU: Alpha Lyrae"]
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [279.23473479, 38.78368896]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_altair",
+      "properties": {
+        "name_cn": "河鼓二",
+        "name_hj": "河鼓",
+        "hip": 97649,
+        "mag": 0.77,
+        "gua": "坎",
+        "fenye": "牛宿",
+        "note": "牛宿代表星",
+        "tags": ["二十八宿"],
+        "source_refs": ["SIMBAD: Altair (HIP 97649)", "IAU: Alpha Aquilae"]
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [297.69582731, 8.86832120]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_spica_jiao_su_yi",
+      "properties": {
+        "name_cn": "角宿一（Spica）",
+        "name_hj": "角宿主星",
+        "hip": 65474,
+        "tags": ["二十八宿"],
+        "note": "二十八宿·角宿主星",
+        "source_refs": ["SIMBAD: Spica (HIP 65474)", "IAU: Alpha Virginis"]
+      },
+      "geometry": { "type": "Point" }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_dschubba_di_su_si",
+      "properties": {
+        "name_cn": "氐宿四（Dschubba）",
+        "name_hj": "氐宿主星",
+        "hip": 78265,
+        "tags": ["二十八宿"],
+        "note": "二十八宿·氐宿主星",
+        "source_refs": ["SIMBAD: Dschubba (HIP 78265)", "IAU: Delta Scorpii"]
+      },
+      "geometry": { "type": "Point" }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_antares_xin_su_er",
+      "properties": {
+        "name_cn": "心宿二（Antares）",
+        "name_hj": "心宿主星",
+        "hip": 80763,
+        "tags": ["二十八宿"],
+        "note": "二十八宿·心宿主星",
+        "source_refs": ["SIMBAD: Antares (HIP 80763)", "IAU: Alpha Scorpii"]
+      },
+      "geometry": { "type": "Point" }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_alcyone_mao_su_liu",
+      "properties": {
+        "name_cn": "昴宿六（Alcyone）",
+        "name_hj": "昴宿主星",
+        "hip": 17702,
+        "tags": ["二十八宿"],
+        "note": "二十八宿·昴宿主星（暂拟，待权威表校对）",
+        "source_refs": ["SIMBAD: Alcyone (HIP 17702)", "IAU: Eta Tauri"]
+      },
+      "geometry": { "type": "Point" }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_aldebaran_bi_su_wu",
+      "properties": {
+        "name_cn": "毕宿五（Aldebaran）",
+        "name_hj": "毕宿主星",
+        "hip": 21421,
+        "tags": ["二十八宿"],
+        "note": "二十八宿·毕宿主星",
+        "source_refs": ["SIMBAD: Aldebaran (HIP 21421)", "IAU: Alpha Tauri"]
+      },
+      "geometry": { "type": "Point" }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_betelgeuse_can_su_si",
+      "properties": {
+        "name_cn": "参宿四（Betelgeuse）",
+        "name_hj": "参宿主星",
+        "hip": 27989,
+        "tags": ["二十八宿"],
+        "note": "二十八宿·参宿主星（备选）",
+        "source_refs": ["SIMBAD: Betelgeuse (HIP 27989)", "IAU: Alpha Orionis"]
+      },
+      "geometry": { "type": "Point" }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_rigel_can_su_qi",
+      "properties": {
+        "name_cn": "参宿七（Rigel）",
+        "name_hj": "参宿主星（备选）",
+        "hip": 24436,
+        "tags": ["二十八宿"],
+        "note": "二十八宿·参宿主星（备选）",
+        "source_refs": ["SIMBAD: Rigel (HIP 24436)", "IAU: Beta Orionis"]
+      },
+      "geometry": { "type": "Point" }
+    }
+  ]
+}
