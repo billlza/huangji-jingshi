@@ -1,4 +1,4 @@
-# Render 部署配置
+# Render 部署配置 - 仅后端服务（前端已部署在 Vercel）
 
 services:
   # 后端服务
@@ -15,18 +15,4 @@ services:
         value: https://nunotqruohnfoozorqiz.supabase.co
       - key: SUPABASE_KEY
         value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51bm90cXJ1b2huZm9vem9ycWl6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDQ2NjY2MiwiZXhwIjoyMDgwMDQyNjYyfQ.a_-2C0z0jgAu3bD-BFBG4ONi1kKyz7fn4cnSlBlY-eE
-
-  # 前端静态站点
-  - type: static_site
-    name: hjjs-frontend
-    rootDir: huangji-jingshi-web/frontend
-    buildCommand: npm ci && npm run build
-    publishPath: dist
-    envVars:
-      - key: VITE_SUPABASE_URL
-        sync: false
-      - key: VITE_SUPABASE_ANON_KEY
-        sync: false
-      - key: VITE_API_BASE_URL
-        value: https://hjjs-backend.onrender.com
 
