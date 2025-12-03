@@ -23,7 +23,7 @@ const Timeline: React.FC<TimelineProps> = ({ currentYear, currentDatetime, onYea
       setLoading(true);
       try {
         // Assuming the datetime is for the start of the year for simplicity in this view
-        const response = await fetch(`${API_BASE}/functions/v1/timeline?datetime=${currentYear}-01-01T12:00:00Z`, {
+        const response = await fetch(`${API_BASE}/functions/v1/timeline?datetime=${currentYear}-01-01T12:00:00Z&birthDate=${currentYear}-01-01T12:00:00Z`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
