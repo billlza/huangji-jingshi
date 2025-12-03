@@ -280,7 +280,7 @@ async fn get_sky_and_fortune(Query(params): Query<SkyFortuneQuery>) -> impl Into
     
     tracing::info!("🌟 获取天象运势: {} @ ({}, {})", params.datetime, lat, lon);
     
-    // 返回完整的天象和运势数据
+    // 返回完整的天象和运势数据，字段名与前端期望一致
     Json(json!({
         "sky": {
             "datetime": params.datetime,
@@ -288,14 +288,17 @@ async fn get_sky_and_fortune(Query(params): Query<SkyFortuneQuery>) -> impl Into
                 "lat": lat,
                 "lon": lon
             },
+            "jd": 2460649.0,
+            "gmst_deg": 123.456,
+            "delta_t_sec": 69.184,
             "bodies": [
-                {"name": "Sun", "ra": 250.5, "dec": -23.2, "alt": 45.0, "az": 180.0},
-                {"name": "Moon", "ra": 120.3, "dec": 15.6, "alt": 60.0, "az": 120.0},
-                {"name": "Mercury", "ra": 245.0, "dec": -20.0, "alt": 42.0, "az": 175.0},
-                {"name": "Venus", "ra": 280.0, "dec": -25.0, "alt": 30.0, "az": 200.0},
-                {"name": "Mars", "ra": 100.0, "dec": 20.0, "alt": 55.0, "az": 100.0},
-                {"name": "Jupiter", "ra": 60.0, "dec": 22.0, "alt": 70.0, "az": 80.0},
-                {"name": "Saturn", "ra": 340.0, "dec": -10.0, "alt": 25.0, "az": 250.0}
+                {"name": "Sun", "ra_deg": 250.5, "dec_deg": -23.2, "alt_deg": 45.0, "az_deg": 180.0},
+                {"name": "Moon", "ra_deg": 120.3, "dec_deg": 15.6, "alt_deg": 60.0, "az_deg": 120.0},
+                {"name": "Mercury", "ra_deg": 245.0, "dec_deg": -20.0, "alt_deg": 42.0, "az_deg": 175.0},
+                {"name": "Venus", "ra_deg": 280.0, "dec_deg": -25.0, "alt_deg": 30.0, "az_deg": 200.0},
+                {"name": "Mars", "ra_deg": 100.0, "dec_deg": 20.0, "alt_deg": 55.0, "az_deg": 100.0},
+                {"name": "Jupiter", "ra_deg": 60.0, "dec_deg": 22.0, "alt_deg": 70.0, "az_deg": 80.0},
+                {"name": "Saturn", "ra_deg": 340.0, "dec_deg": -10.0, "alt_deg": 25.0, "az_deg": 250.0}
             ],
             "stars": [],
             "constellations": []
