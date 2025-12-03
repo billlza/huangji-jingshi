@@ -15,9 +15,15 @@ const SkyCard: React.FC<SkyCardProps> = ({ data, date, lat, lon, timezone, conta
   const [renameZh, setRenameZh] = useState<boolean>(true);
   useEffect(() => {
     const API_BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || '';
+    const SUPABASE_ANON_KEY = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_SUPABASE_ANON_KEY || '';
     (async () => {
       try {
-        const r = await fetch(`${API_BASE || ''}/api/settings/sky`);
+        const r = await fetch(`${API_BASE || ''}/sky`, {
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
         if (r.ok) {
           const s = await r.json() as { zh_planet_names: boolean };
           setRenameZh(!!s.zh_planet_names);

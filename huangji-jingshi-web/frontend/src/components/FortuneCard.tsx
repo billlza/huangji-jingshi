@@ -14,6 +14,7 @@ const FortuneCard: React.FC<FortuneCardProps> = ({ data, currentYear, onJumpToYe
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [mirrorItems, setMirrorItems] = useState<Array<{ year: number; title: string; dynasty?: string; person?: string }>>([]);
   const API_BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || '';
+  const SUPABASE_ANON_KEY = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_SUPABASE_ANON_KEY || '';
   
   // If currentYear is not passed, try to parse from datetime ISO if available in context, 
   // or fallback to system year (which might be wrong for history view, but better than nothing).
@@ -46,7 +47,12 @@ const FortuneCard: React.FC<FortuneCardProps> = ({ data, currentYear, onJumpToYe
     const run = async () => {
       try {
         if (!yunRange) return;
-        const resp = await fetch(`${API_BASE}/api/history/related?year=${displayYear}&mode=yun&limit=3`);
+        const resp = await fetch(`${API_BASE}/history?year=${displayYear}&mode=yun&limit=3`, {
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
         if (!resp.ok) return;
         const list: Array<{ year: number; title: string; dynasty?: string; person?: string }> = await resp.json();
         setMirrorItems(list);

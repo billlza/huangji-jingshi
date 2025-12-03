@@ -21,12 +21,19 @@ export function computeLocalOffset(date: Date, lat: number, lon: number): Timezo
 async function fetchRemoteOffset(date: Date, lat: number, lon: number): Promise<TimezoneResult | null> {
   try {
     const base = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || '';
+    const SUPABASE_ANON_KEY = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_SUPABASE_ANON_KEY || '';
     const q = new URLSearchParams({
       datetime: date.toISOString(),
       lat: String(lat),
       lon: String(lon),
     });
-    const resp = await fetch(`${base}/api/timezone?${q.toString()}`);
+    const resp = await fetch(`${base}/calculate?${q.toString()}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
     if (!resp.ok) return null;
     const json = await resp.json();
     const offsetSeconds = typeof json.gmtOffset === 'number' ? json.gmtOffset : (json.offset_seconds ?? 0);

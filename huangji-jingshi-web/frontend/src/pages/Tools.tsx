@@ -22,6 +22,7 @@ function safeYear(s: string | null | undefined) {
 
 export default function Tools() {
   const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
+  const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
   const [data, setData] = useState<CombinedResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +77,15 @@ export default function Tools() {
           lon: params.lon.toString()
         });
         
-        const res = await fetch(`${API_BASE}/api/sky-and-fortune?${q}`, { signal: controller.signal, keepalive: true });
+        const res = await fetch(`${API_BASE}/calculate?${q}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          signal: controller.signal,
+          keepalive: true
+        });
         if (!res.ok) {
           const errText = await res.text();
           throw new Error(errText || "Server Error");
@@ -89,7 +98,15 @@ export default function Tools() {
             lat: params.lat.toString(),
             lon: params.lon.toString()
           });
-          const res2 = await fetch(`${API_BASE}/api/sky-and-fortune?${q2}`, { signal: controller.signal, keepalive: true });
+          const res2 = await fetch(`${API_BASE}/calculate?${q2}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            signal: controller.signal,
+            keepalive: true
+          });
           if (res2.ok) {
             const j2 = await res2.json();
             setCompareData(j2);

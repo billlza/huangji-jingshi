@@ -184,11 +184,19 @@ export function StarMap({ date, lat, lon, timezone = 0, containerId = 'celestial
         return;
       }
       const API_BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || '';
+      const SUPABASE_ANON_KEY = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_SUPABASE_ANON_KEY || '';
       try {
         if (API_BASE && USE_REMOTE_SETTINGS) {
           if (settingsControllerRef.current) { try { settingsControllerRef.current.abort(); } catch { /* ignore */ } }
           settingsControllerRef.current = new AbortController();
-          const r = await fetch(`${API_BASE}/api/settings/sky`, { method: 'GET', signal: settingsControllerRef.current.signal });
+          const r = await fetch(`${API_BASE}/sky`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            signal: settingsControllerRef.current.signal
+          });
           if (r.ok) {
             const s = await r.json() as { show_const: boolean; show_xiu: boolean; zh_planet_names: boolean; culture: string };
             setShowConst(!!s.show_const);

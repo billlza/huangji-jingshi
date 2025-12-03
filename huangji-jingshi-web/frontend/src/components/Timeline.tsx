@@ -10,6 +10,7 @@ interface TimelineProps {
 
 const Timeline: React.FC<TimelineProps> = ({ currentYear, currentDatetime, onYearChange, mapping }) => {
   const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
+  const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
   const [data, setData] = useState<TimelineData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +23,13 @@ const Timeline: React.FC<TimelineProps> = ({ currentYear, currentDatetime, onYea
       setLoading(true);
       try {
         // Assuming the datetime is for the start of the year for simplicity in this view
-        const response = await fetch(`${API_BASE}/api/timeline?datetime=${currentYear}-01-01T12:00:00Z`);
+        const response = await fetch(`${API_BASE}/timeline?datetime=${currentYear}-01-01T12:00:00Z`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
         if (!response.ok) throw new Error('Failed to fetch timeline');
         const json = await response.json();
         setData(json);
@@ -44,7 +51,13 @@ const Timeline: React.FC<TimelineProps> = ({ currentYear, currentDatetime, onYea
     const end = data.current.hui.end_year;
     const run = async () => {
       try {
-        const r = await fetch(`${API_BASE}/api/mapping/get?year=${start}`);
+        const r = await fetch(`${API_BASE}/calculate?year=${start}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
         const j = await r.json();
         const hex = j.record?.nian_hexagram as string | undefined;
         if (hex) setHuiDoc(`${hex}（${start}–${end}）`); else setHuiDoc(null);
@@ -77,7 +90,12 @@ const Timeline: React.FC<TimelineProps> = ({ currentYear, currentDatetime, onYea
     const end = Math.max(r1.end, r2.end, r3.end, r4.end);
     const fetchEvents = async () => {
       try {
-        const resp = await fetch(`${API_BASE}/api/history?start=${start}&end=${end}`);
+        const resp = await fetch(`${API_BASE}/history?start=${start}&end=${end}`, {
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
         if (!resp.ok) throw new Error('Failed');
         const json = await resp.json();
         setEvents(json);
