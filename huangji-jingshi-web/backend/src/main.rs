@@ -1,9 +1,10 @@
 use axum::{
     routing::{get, post},
-    Json, Router, extract::Path,
+    Json, Router, extract::{Path, Query},
 };
 use axum::response::IntoResponse;
 use chrono::Utc;
+use serde::Deserialize;
 use tower_http::cors::CorsLayer;
 use std::sync::RwLock;
 use std::collections::HashMap;
@@ -72,7 +73,7 @@ async fn main() {
         
         // API路由
         .route("/api/calculate", post(calculate))
-        .route("/api/timeline/:year", get(get_timeline))
+        .route("/api/timeline", get(get_timeline))
         .route("/api/history", get(get_history))
         .route("/api/celestial/hashes", get(get_celestial_hashes))
         .route("/api/sky/settings", get(get_sky_settings))
@@ -226,18 +227,55 @@ async fn calculate(Json(payload): Json<serde_json::Value>) -> impl IntoResponse 
     }))
 }
 
+#[derive(Deserialize)]
+struct TimelineQuery {
+    datetime: String,
+}
+
 // 获取时间线
-async fn get_timeline(Path(year): Path<i32>) -> impl IntoResponse {
-    tracing::debug!("📅 查询时间线: {}", year);
+async fn get_timeline(Query(params): Query<TimelineQuery>) -> impl IntoResponse {
+    // 从 datetime 参数中提取年份
+    let year: i32 = params.datetime
+        .split('-')
+        .next()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(2025);
+    
+    tracing::debug!("📅 查询时间线: {} (from datetime: {})", year, params.datetime);
     
     let data = TIMELINE_DATA.read().unwrap();
     if let Some(timeline) = data.get(&year) {
         Json(timeline.clone())
     } else {
+        // 返回模拟数据
         Json(json!({
             "year": year,
-            "ganzhi": "甲子年",
-            "events": []
+            "current": {
+                "hui": {
+                    "index": 1,
+                    "name": "元会",
+                    "start_year": 1744,
+                    "end_year": 12543
+                },
+                "yun": {
+                    "index": 1,
+                    "name": "甲运",
+                    "start_year": 1864,
+                    "end_year": 2223
+                },
+                "shi": {
+                    "index": 1,
+                    "name": "子世",
+                    "start_year": 1984,
+                    "end_year": 2013
+                },
+                "xun": {
+                    "index": 1,
+                    "name": "甲子旬",
+                    "start_year": year - 5,
+                    "end_year": year + 5
+                }
+            }
         }))
     }
 }
