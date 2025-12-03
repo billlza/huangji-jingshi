@@ -12,14 +12,14 @@
         "id": "2",
         "content": "触发Render重新部署后端服务",
         "details": "更新后端代码后，需要触发Render自动重新部署或手动更新服务",
-        "status": "in_progress",
+        "status": "completed",
         "priority": "high"
       },
       "3": {
         "id": "3",
         "content": "测试后端API响应",
-        "details": "测试 https://hjjs-backend.onrender.com/health 端点是否正常响应",
-        "status": "in_progress",
+        "details": "Node.js版本代码已推送到GitHub，需要手动创建新Render服务",
+        "status": "pending",
         "priority": "high"
       },
       "4": {

@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: hjjs-backend-simple
+    env: rust
+    plan: free
+    buildCommand: cargo build --release
+    startCommand: ./target/release/backend
+    envVars:
+      - key: RUST_LOG
+        value: info
+      - key: PORT
+        value: "3000"
