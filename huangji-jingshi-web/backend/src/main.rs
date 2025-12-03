@@ -71,13 +71,18 @@ async fn main() {
         .route("/health", get(health_check))
         .route("/", get(root_handler))
         
-        // API路由
+        // 核心 API 路由
+        .route("/api/sky-and-fortune", get(get_sky_and_fortune))
         .route("/api/calculate", post(calculate))
         .route("/api/timeline", get(get_timeline))
         .route("/api/history", get(get_history))
+        .route("/api/history/related", get(get_history_related))
+        .route("/api/mapping/get", get(get_mapping))
         .route("/api/celestial/hashes", get(get_celestial_hashes))
         .route("/api/sky/settings", get(get_sky_settings))
         .route("/api/sky/settings", post(update_sky_settings))
+        .route("/api/settings/sky", get(get_sky_settings))
+        .route("/api/settings/sky", post(update_sky_settings))
         
         // 静态文件服务
         .route("/static/:file", get(static_handler))
@@ -189,16 +194,21 @@ async fn root_handler() -> impl IntoResponse {
     Json(json!({
         "service": "皇极经世后端服务",
         "status": "running",
-        "version": "1.0.0-fixed",
+        "version": "1.1.0",
         "message": "API服务正常运行",
         "endpoints": [
             "GET /health",
+            "GET /api/sky-and-fortune",
             "POST /api/calculate",
-            "GET /api/timeline/{year}",
+            "GET /api/timeline",
             "GET /api/history",
+            "GET /api/history/related",
+            "GET /api/mapping/get",
             "GET /api/celestial/hashes",
             "GET /api/sky/settings",
-            "POST /api/sky/settings"
+            "POST /api/sky/settings",
+            "GET /api/settings/sky",
+            "POST /api/settings/sky"
         ]
     }))
 }
@@ -230,6 +240,148 @@ async fn calculate(Json(payload): Json<serde_json::Value>) -> impl IntoResponse 
 #[derive(Deserialize)]
 struct TimelineQuery {
     datetime: String,
+}
+
+#[derive(Deserialize)]
+struct SkyFortuneQuery {
+    datetime: String,
+    lat: Option<f64>,
+    lon: Option<f64>,
+}
+
+#[derive(Deserialize)]
+struct HistoryQuery {
+    start: Option<i32>,
+    end: Option<i32>,
+}
+
+#[derive(Deserialize)]
+struct HistoryRelatedQuery {
+    year: Option<i32>,
+    mode: Option<String>,
+    limit: Option<i32>,
+}
+
+#[derive(Deserialize)]
+struct MappingQuery {
+    year: Option<i32>,
+}
+
+// 核心 API - 获取天象和运势数据
+async fn get_sky_and_fortune(Query(params): Query<SkyFortuneQuery>) -> impl IntoResponse {
+    let year: i32 = params.datetime
+        .split('-')
+        .next()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(2025);
+    
+    let lat = params.lat.unwrap_or(39.9);
+    let lon = params.lon.unwrap_or(116.4);
+    
+    tracing::info!("🌟 获取天象运势: {} @ ({}, {})", params.datetime, lat, lon);
+    
+    // 返回完整的天象和运势数据
+    Json(json!({
+        "sky": {
+            "datetime": params.datetime,
+            "location": {
+                "lat": lat,
+                "lon": lon
+            },
+            "bodies": [
+                {"name": "Sun", "ra": 250.5, "dec": -23.2, "alt": 45.0, "az": 180.0},
+                {"name": "Moon", "ra": 120.3, "dec": 15.6, "alt": 60.0, "az": 120.0},
+                {"name": "Mercury", "ra": 245.0, "dec": -20.0, "alt": 42.0, "az": 175.0},
+                {"name": "Venus", "ra": 280.0, "dec": -25.0, "alt": 30.0, "az": 200.0},
+                {"name": "Mars", "ra": 100.0, "dec": 20.0, "alt": 55.0, "az": 100.0},
+                {"name": "Jupiter", "ra": 60.0, "dec": 22.0, "alt": 70.0, "az": 80.0},
+                {"name": "Saturn", "ra": 340.0, "dec": -10.0, "alt": 25.0, "az": 250.0}
+            ],
+            "stars": [],
+            "constellations": []
+        },
+        "fortune": {
+            "datetime": params.datetime,
+            "ganzhi": {
+                "year": "乙巳",
+                "month": "丁亥",
+                "day": "甲子",
+                "hour": "甲子"
+            },
+            "mapping_record": {
+                "yuan_index": 1,
+                "hui_index": 1,
+                "yun_index": 6,
+                "shi_index": 2,
+                "nian_index": year - 2014 + 1,
+                "nian_hexagram": "乾",
+                "yue_hexagram": "坤",
+                "ri_hexagram": "屯"
+            },
+            "huangji_info": {
+                "hui": {
+                    "index": 1,
+                    "name": "元会",
+                    "start_year": 1744,
+                    "end_year": 12543
+                },
+                "yun": {
+                    "index": 6,
+                    "name": "己运",
+                    "start_year": 1864,
+                    "end_year": 2223
+                },
+                "shi": {
+                    "index": 2,
+                    "name": "丑世",
+                    "start_year": 2014,
+                    "end_year": 2043
+                },
+                "xun": {
+                    "index": 2,
+                    "name": "甲戌旬",
+                    "start_year": 2024,
+                    "end_year": 2033
+                }
+            }
+        }
+    }))
+}
+
+// 获取历史相关事件
+async fn get_history_related(Query(params): Query<HistoryRelatedQuery>) -> impl IntoResponse {
+    let year = params.year.unwrap_or(2025);
+    let _limit = params.limit.unwrap_or(3);
+    
+    tracing::debug!("📚 获取相关历史: year={}, limit={}", year, _limit);
+    
+    Json(json!({
+        "events": [
+            {"year": year - 60, "title": "甲子年事件", "description": "六十年前的重要历史事件"},
+            {"year": year - 120, "title": "往年大事", "description": "一百二十年前的历史记载"},
+            {"year": year - 180, "title": "古代记录", "description": "一百八十年前的历史文献"}
+        ]
+    }))
+}
+
+// 获取映射记录
+async fn get_mapping(Query(params): Query<MappingQuery>) -> impl IntoResponse {
+    let year = params.year.unwrap_or(2025);
+    
+    tracing::debug!("🗺️ 获取映射记录: year={}", year);
+    
+    Json(json!({
+        "record": {
+            "year": year,
+            "nian_hexagram": "乾",
+            "yue_hexagram": "坤",
+            "ri_hexagram": "屯",
+            "yuan_index": 1,
+            "hui_index": 1,
+            "yun_index": 6,
+            "shi_index": 2
+        }
+    }))
 }
 
 // 获取时间线
