@@ -3,38 +3,31 @@
     "Coordinator": {
       "1": {
         "id": "1",
-        "content": "获取Supabase认证并复制项目文件",
-        "details": "1. 获取Supabase项目认证信息 ✓\n2. 将项目文件复制到工作目录 ✓\n3. 检查和调整配置 ✓",
-        "status": "completed",
+        "content": "将修复后的backend代码推送到GitHub仓库",
+        "details": "将 /workspace/backend-fixed/ 目录下的文件推送到 billlza/huangji-jingshi 仓库的 backend 目录，替换原有文件",
+        "status": "in_progress",
         "priority": "high"
       },
       "2": {
         "id": "2",
-        "content": "部署前端应用",
-        "details": "1. 配置前端环境变量\n2. 构建React前端\n3. 部署到Vercel平台",
-        "status": "completed",
+        "content": "触发Render重新部署后端服务",
+        "details": "更新后端代码后，需要触发Render自动重新部署或手动更新服务",
+        "status": "pending",
         "priority": "high"
       },
       "3": {
         "id": "3",
-        "content": "部署后端服务",
-        "details": "1. 配置Rust后端环境变量\n2. 部署到Render平台\n3. 获取后端服务URL",
-        "status": "completed",
+        "content": "测试后端API响应",
+        "details": "测试 https://hjjs-backend.onrender.com/health 端点是否正常响应",
+        "status": "pending",
         "priority": "high"
       },
       "4": {
         "id": "4",
-        "content": "集成测试",
-        "details": "✅ 已诊断问题：后端API服务无响应（硬编码路径问题）\n✅ 已创建修复版本：\n  - 移除硬编码路径\n  - 添加智能路径探测\n  - 提供Mock数据确保API响应\n  - 改进错误处理和日志\n✅ 已创建部署配置：backend-fixed/render.yaml\n✅ 提供完整部署指南：URGENT-BACKEND-FIX.md",
-        "status": "completed",
-        "priority": "medium"
-      },
-      "5": {
-        "id": "5",
-        "content": "完成部署并提供访问链接",
-        "details": "✅ 前后端部署完成\n✅ 问题诊断和修复方案完成\n✅ 部署文档和指南完成\n✅ 提供最终访问信息：\n  - 前端：https://huangji-jingshi.vercel.app\n  - 后端：https://hjjs-backend.onrender.com (待修复)\n  - 修复版本：即将部署",
-        "status": "completed",
-        "priority": "medium"
+        "content": "验证前端天机演算功能",
+        "details": "测试前端 https://huangji-jingshi.vercel.app 的天机演算功能是否正常工作",
+        "status": "pending",
+        "priority": "high"
       }
     }
   }
