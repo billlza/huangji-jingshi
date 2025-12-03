@@ -247,7 +247,7 @@ async fn get_timeline(Query(params): Query<TimelineQuery>) -> impl IntoResponse 
     if let Some(timeline) = data.get(&year) {
         Json(timeline.clone())
     } else {
-        // 返回模拟数据
+        // 返回完整的模拟数据，包含所有前端需要的字段
         Json(json!({
             "year": year,
             "current": {
@@ -258,24 +258,42 @@ async fn get_timeline(Query(params): Query<TimelineQuery>) -> impl IntoResponse 
                     "end_year": 12543
                 },
                 "yun": {
-                    "index": 1,
-                    "name": "甲运",
+                    "index": 6,
+                    "name": "己运",
                     "start_year": 1864,
                     "end_year": 2223
                 },
                 "shi": {
-                    "index": 1,
-                    "name": "子世",
-                    "start_year": 1984,
-                    "end_year": 2013
+                    "index": 2,
+                    "name": "丑世",
+                    "start_year": 2014,
+                    "end_year": 2043
                 },
                 "xun": {
-                    "index": 1,
-                    "name": "甲子旬",
-                    "start_year": year - 5,
-                    "end_year": year + 5
+                    "index": 2,
+                    "name": "甲戌旬",
+                    "start_year": 2024,
+                    "end_year": 2033
                 }
-            }
+            },
+            "hui_list": [
+                {"index": 1, "name": "元会", "start_year": 1744, "end_year": 12543}
+            ],
+            "yun_list": [
+                {"index": 5, "name": "戊运", "start_year": 1504, "end_year": 1863},
+                {"index": 6, "name": "己运", "start_year": 1864, "end_year": 2223},
+                {"index": 7, "name": "庚运", "start_year": 2224, "end_year": 2583}
+            ],
+            "shi_list": [
+                {"index": 1, "name": "子世", "start_year": 1984, "end_year": 2013},
+                {"index": 2, "name": "丑世", "start_year": 2014, "end_year": 2043},
+                {"index": 3, "name": "寅世", "start_year": 2044, "end_year": 2073}
+            ],
+            "xun_list": [
+                {"index": 1, "name": "甲子旬", "start_year": 2014, "end_year": 2023},
+                {"index": 2, "name": "甲戌旬", "start_year": 2024, "end_year": 2033},
+                {"index": 3, "name": "甲申旬", "start_year": 2034, "end_year": 2043}
+            ]
         }))
     }
 }
