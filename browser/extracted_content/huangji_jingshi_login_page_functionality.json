@@ -1,0 +1,26 @@
+📄 Extracted from page: 皇极经世 Web
+URL: https://huangji-jingshi.vercel.app/login
+
+Extracted content:
+```json
+{
+  "title": "皇极经世 Web",
+  "url": "https://huangji-jingshi.vercel.app/login",
+  "summary": "This is a login page for the '皇极经世 Web' platform, also referred to as 'Cosmic Chronology'. Users can log in using their email and password, or choose to register a new account. There are also navigation options to return to the homepage.",
+  "key_points": [
+    "User login form",
+    "Requires '邮箱 Email' (Email) for login",
+    "Requires '密码 Password' (Password) for login",
+    "A '登 录' (Login) button to submit credentials",
+    "Option to '注册新账户' (register new account)",
+    "Navigation link to '返回首页' (return to homepage)",
+    "Navigation link for '登录 / 注册' (Login / Register)",
+    "Copyright notice: '© 2025 Huangji Jingshi Platform'"
+  ],
+  "relevant_links": [
+    "/login",
+    "/"
+  ],
+  "file_name": "huangji_jingshi_login_page_functionality.json"
+}
+```

@@ -1,0 +1,30 @@
+📄 Extracted from page: 皇极经世 Web
+URL: https://huangji-jingshi.vercel.app/about
+
+Extracted content:
+```json
+{
+  "title": "皇极经世 Web",
+  "url": "https://huangji-jingshi.vercel.app/about",
+  "summary": "此页面详细介绍了“皇极经世 Web”网站的算法依据、数据来源、参考古籍及数表，并阐明了其署名和使用说明。网站的算法结合了自编的元会运世数表与公开古籍，以“以卦配时”为基本原则，并利用时间坐标进行推演。主要参考古籍为《皇極經世書》（四库全书本），电子文本来源于中国哲学书电子化计划和维基文库。此外，还引用了海云青飞的数学与数表作为算法校对依据。网站强调只进行少量引用并链接至原始来源，不批量抓取，且其数表与方法仅用于校对而非官方数据发布。",
+  "key_points": [
+    "算法依据：结合自编元会运世数表与公开古籍。",
+    "算法核心原则：“以卦配时”，并结合时间坐标（元/会/运/世/旬）推演。",
+    "古籍底本：《皇極經世書》（四库全书本），影印本见浙江大学图书馆。",
+    "电子文本参考来源：中国哲学书电子化计划 (ctext.org) 和维基文库 (zh.wikisource.org)。",
+    "数学与数表参考：海云青飞《皇極經世书：常用图表》等文章，仅用于算法校对。",
+    "文本整理参考：中国哲学书电子化计划。",
+    "部分古籍文本遵循 CC BY-SA 3.0 协议，来源于维基文库。",
+    "网站不批量抓取或复制整表，仅作少量引用与链接至原始来源。",
+    "数表与方法仅作为校对标尺，不作为官方数据源发布。",
+    "项目为开源项目 (Open Source Project)。"
+  ],
+  "relevant_links": [
+    "https://ctext.org/wiki.pl?if=gb&res=561844",
+    "https://zh.wikisource.org/wiki/皇極經世",
+    "https://zh.wikisource.org/wiki/皇極經世書_(四庫全書本)",
+    "https://tuenhai.com/tieban/huang-ji-fly-tables.html"
+  ],
+  "file_name": "huangji_jingshi_about.json"
+}
+```

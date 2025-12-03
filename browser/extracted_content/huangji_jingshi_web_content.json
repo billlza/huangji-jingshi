@@ -1,0 +1,40 @@
+📄 Extracted from page: 皇极经世 Web
+URL: https://huangji-jingshi.vercel.app/
+
+Extracted content:
+```json
+{
+    "title": "皇极经世 Web",
+    "url": "https://huangji-jingshi.vercel.app/",
+    "summary": "该页面介绍了“皇极经世 Web”（Cosmic Chronology），一个基于北宋邵雍《皇极经世书》构建的数字化推演平台。其核心目标是探究宇宙宏观演化并推演历史兴衰治乱。平台提供的主要功能包括精确计算宇宙时间坐标的“元会运世”，推导流年卦象的“值年卦象”，以及结合实时天象星图进行立体化推演的“星图参佐”。页面提供了登录/注册、开始推演、了解背景和关于/数据来源等导航链接。页面底部显示版权信息为 © 2025 Huangji Jingshi Platform，并表明其为一个开源项目。页面内容中未发现任何错误信息或API状态提示。",
+    "key_points": [
+        "平台名称：皇极经世 Web (Cosmic Chronology)。",
+        "核心理念：基于北宋邵雍《皇极经世书》构建的数字化推演平台，旨在探究宇宙宏观演化，推演历史兴衰治乱。",
+        "主要功能：",
+        "    - 元会运世：精确计算当前的宇宙时间坐标，解析大尺度的时空定位。",
+        "    - 值年卦象：推导每一年的流年卦象，洞察年度气运与人事吉凶。",
+        "    - 星图参佐：结合实时天象星图，实现天人合一的立体化推演。",
+        "项目状态：2025年版权，开源项目。",
+        "页面上没有出现任何错误信息或API状态提示。"
+    ],
+    "relevant_links": [
+        {
+            "text": "登录 / 注册",
+            "url": "/login"
+        },
+        {
+            "text": "开始推演",
+            "url": "/tools"
+        },
+        {
+            "text": "了解背景",
+            "url": "/story"
+        },
+        {
+            "text": "关于/数据来源",
+            "url": "/about"
+        }
+    ],
+    "file_name": "huangji_jingshi_web_content.json"
+}
+```
