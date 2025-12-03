@@ -1,19 +1,16 @@
 use axum::{
     routing::{get, post},
-    Json, Router, extract::{Query, Path},
+    Json, Router, extract::Path,
 };
 use axum::response::IntoResponse;
-use axum::http::HeaderValue;
-use chrono::{DateTime, Utc, Datelike};
-use serde::{Deserialize, Serialize};
+use chrono::Utc;
 use tower_http::cors::CorsLayer;
 use std::sync::RwLock;
 use std::collections::HashMap;
 use std::env;
-use reqwest::Client;
-use tokio::task;
 use serde_json::json;
 use std::path::PathBuf;
+use once_cell::sync::Lazy;
 
 // 静态数据缓存
 static TIMELINE_DATA: Lazy<RwLock<HashMap<i32, serde_json::Value>>> = Lazy::new(|| {
@@ -84,12 +81,9 @@ async fn main() {
         // 静态文件服务
         .route("/static/:file", get(static_handler))
         
-        // CORS
+        // CORS - 允许所有来源
         .layer(
-            CorsLayer::new()
-                .allow_origin(HeaderValue::from_str("https://huangji-jingshi.vercel.app").unwrap())
-                .allow_methods(tower_http::cors::Any)
-                .allow_headers(tower_http::cors::Any),
+            CorsLayer::permissive()
         );
 
     tracing::info!("🌐 启动服务器，端口: {}", port);
@@ -128,20 +122,16 @@ fn find_data_path() -> Option<PathBuf> {
 async fn load_data_files(data_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("📊 开始加载数据文件...");
 
-    // 加载时间线数据
-    let timeline_path = data_path.parent().unwrap().parent().unwrap().join("data/history.json");
-    if timeline_path.exists() {
-        match load_json_file(&timeline_path).await {
-            Ok(data) => {
-                *TIMELINE_DATA.write().unwrap() = data.as_object().cloned().unwrap_or_default();
-                tracing::info!("✅ 时间线数据加载成功");
-            }
-            Err(e) => tracing::warn!("⚠️ 时间线数据加载失败: {}", e),
-        }
-    }
+    // 获取数据根目录
+    let data_root = if data_path.to_str().unwrap().contains("celestial") {
+        data_path.parent().unwrap_or(data_path)
+    } else {
+        data_path
+    };
 
     // 加载历史数据
-    let history_path = data_path.parent().unwrap().join("major_events.json");
+    let history_path = data_root.join("history.json");
+    tracing::info!("🔍 尝试加载历史数据: {:?}", history_path);
     if history_path.exists() {
         match load_json_file(&history_path).await {
             Ok(data) => {
@@ -149,6 +139,25 @@ async fn load_data_files(data_path: &PathBuf) -> Result<(), Box<dyn std::error::
                 tracing::info!("✅ 历史数据加载成功");
             }
             Err(e) => tracing::warn!("⚠️ 历史数据加载失败: {}", e),
+        }
+    }
+
+    // 加载主要事件数据
+    let major_events_path = data_root.join("major_events.json");
+    tracing::info!("🔍 尝试加载事件数据: {:?}", major_events_path);
+    if major_events_path.exists() {
+        match load_json_file(&major_events_path).await {
+            Ok(data) => {
+                if let Some(obj) = data.as_object() {
+                    for (key, value) in obj.iter() {
+                        if let Ok(year) = key.parse::<i32>() {
+                            TIMELINE_DATA.write().unwrap().insert(year, value.clone());
+                        }
+                    }
+                    tracing::info!("✅ 主要事件数据加载成功");
+                }
+            }
+            Err(e) => tracing::warn!("⚠️ 主要事件数据加载失败: {}", e),
         }
     }
 
@@ -200,9 +209,11 @@ async fn calculate(Json(payload): Json<serde_json::Value>) -> impl IntoResponse 
     // 模拟演算过程
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
+    let calc_id = format!("calc_{}", Utc::now().timestamp());
+
     Json(json!({
         "result": "天机演算完成",
-        "calculation_id": "calc_" + &Utc::now().timestamp().to_string(),
+        "calculation_id": calc_id,
         "input": payload,
         "output": {
             "ganzhi": "甲子",
