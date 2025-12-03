@@ -123,10 +123,11 @@ const Timeline: React.FC<TimelineProps> = ({ currentYear, currentDatetime, onYea
     const typeLabel = title.includes('Era') ? '会' : title.includes('Cycle') ? '运' : title.includes('Gen') ? '世' : '旬';
     const spanLabel = title.includes('Era') ? '10800年' : title.includes('Cycle') ? '360年' : title.includes('Gen') ? '30年' : '10年';
     const labelForItem = (item: PeriodInfo) => {
+      // 使用干支名称而不是序号
       if (typeLabel === '会') return `${item.name}会`;
-      if (typeLabel === '运') return `第${item.index}运`;
-      if (typeLabel === '世') return `第${item.index}世`;
-      return `第${item.index}旬`;
+      if (typeLabel === '运') return `${item.name}运`;
+      if (typeLabel === '世') return `${item.name}世`;
+      return `${item.name}旬`;
     };
     return (
       <div className="mb-6">

@@ -402,6 +402,8 @@ async fn get_timeline(Query(params): Query<TimelineQuery>) -> impl IntoResponse 
         Json(timeline.clone())
     } else {
         // 返回完整的模拟数据，完全匹配前端 TimelineData 类型
+        // 根据皇极经世：当前处于午会（第7会），不是第1会
+        // 十二会：子丑寅卯辰巳午未申酉戌亥
         Json(json!({
             "year": year,
             "current": {
@@ -409,33 +411,33 @@ async fn get_timeline(Query(params): Query<TimelineQuery>) -> impl IntoResponse 
                     "index": 1,
                     "name": "元",
                     "start_year": -67017,
-                    "end_year": 62983,
+                    "end_year": 62583,
                     "max_index": 1
                 },
                 "hui": {
-                    "index": 1,
-                    "name": "元会",
-                    "start_year": 1744,
-                    "end_year": 12543,
+                    "index": 7,
+                    "name": "午",
+                    "start_year": -2156,
+                    "end_year": 8644,
                     "max_index": 12
                 },
                 "yun": {
                     "index": 6,
-                    "name": "己运",
+                    "name": "己",
                     "start_year": 1864,
                     "end_year": 2223,
-                    "max_index": 12
+                    "max_index": 30
                 },
                 "shi": {
                     "index": 2,
-                    "name": "丑世",
+                    "name": "丑",
                     "start_year": 2014,
                     "end_year": 2043,
                     "max_index": 12
                 },
                 "xun": {
                     "index": 2,
-                    "name": "甲戌旬",
+                    "name": "甲戌",
                     "start_year": 2024,
                     "end_year": 2033,
                     "max_index": 3
@@ -443,25 +445,27 @@ async fn get_timeline(Query(params): Query<TimelineQuery>) -> impl IntoResponse 
                 "year_gua": "乾"
             },
             "yuan_list": [
-                {"index": 1, "name": "元", "start_year": -67017, "end_year": 62983, "max_index": 1}
+                {"index": 1, "name": "元", "start_year": -67017, "end_year": 62583, "max_index": 1}
             ],
             "hui_list": [
-                {"index": 1, "name": "元会", "start_year": 1744, "end_year": 12543, "max_index": 12}
+                {"index": 6, "name": "巳", "start_year": -12956, "end_year": -2157, "max_index": 12},
+                {"index": 7, "name": "午", "start_year": -2156, "end_year": 8644, "max_index": 12},
+                {"index": 8, "name": "未", "start_year": 8645, "end_year": 19444, "max_index": 12}
             ],
             "yun_list": [
-                {"index": 5, "name": "戊运", "start_year": 1504, "end_year": 1863, "max_index": 12},
-                {"index": 6, "name": "己运", "start_year": 1864, "end_year": 2223, "max_index": 12},
-                {"index": 7, "name": "庚运", "start_year": 2224, "end_year": 2583, "max_index": 12}
+                {"index": 5, "name": "戊", "start_year": 1504, "end_year": 1863, "max_index": 30},
+                {"index": 6, "name": "己", "start_year": 1864, "end_year": 2223, "max_index": 30},
+                {"index": 7, "name": "庚", "start_year": 2224, "end_year": 2583, "max_index": 30}
             ],
             "shi_list": [
-                {"index": 1, "name": "子世", "start_year": 1984, "end_year": 2013, "max_index": 12},
-                {"index": 2, "name": "丑世", "start_year": 2014, "end_year": 2043, "max_index": 12},
-                {"index": 3, "name": "寅世", "start_year": 2044, "end_year": 2073, "max_index": 12}
+                {"index": 1, "name": "子", "start_year": 1984, "end_year": 2013, "max_index": 12},
+                {"index": 2, "name": "丑", "start_year": 2014, "end_year": 2043, "max_index": 12},
+                {"index": 3, "name": "寅", "start_year": 2044, "end_year": 2073, "max_index": 12}
             ],
             "xun_list": [
-                {"index": 1, "name": "甲子旬", "start_year": 2014, "end_year": 2023, "max_index": 3},
-                {"index": 2, "name": "甲戌旬", "start_year": 2024, "end_year": 2033, "max_index": 3},
-                {"index": 3, "name": "甲申旬", "start_year": 2034, "end_year": 2043, "max_index": 3}
+                {"index": 1, "name": "甲子", "start_year": 2014, "end_year": 2023, "max_index": 3},
+                {"index": 2, "name": "甲戌", "start_year": 2024, "end_year": 2033, "max_index": 3},
+                {"index": 3, "name": "甲申", "start_year": 2034, "end_year": 2043, "max_index": 3}
             ]
         }))
     }
