@@ -189,7 +189,7 @@ export function StarMap({ date, lat, lon, timezone = 0, containerId = 'celestial
         if (API_BASE && USE_REMOTE_SETTINGS) {
           if (settingsControllerRef.current) { try { settingsControllerRef.current.abort(); } catch { /* ignore */ } }
           settingsControllerRef.current = new AbortController();
-          const r = await fetch(`${API_BASE}/sky`, {
+          const r = await fetch(`${API_BASE}/functions/v1/sky`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,

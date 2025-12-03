@@ -27,7 +27,7 @@ async function fetchRemoteOffset(date: Date, lat: number, lon: number): Promise<
       lat: String(lat),
       lon: String(lon),
     });
-    const resp = await fetch(`${base}/calculate?${q.toString()}`, {
+    const resp = await fetch(`${base}/functions/v1/calculate?${q.toString()}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,

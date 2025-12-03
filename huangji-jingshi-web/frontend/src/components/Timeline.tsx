@@ -23,7 +23,7 @@ const Timeline: React.FC<TimelineProps> = ({ currentYear, currentDatetime, onYea
       setLoading(true);
       try {
         // Assuming the datetime is for the start of the year for simplicity in this view
-        const response = await fetch(`${API_BASE}/timeline?datetime=${currentYear}-01-01T12:00:00Z`, {
+        const response = await fetch(`${API_BASE}/functions/v1/timeline?datetime=${currentYear}-01-01T12:00:00Z`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
@@ -51,7 +51,7 @@ const Timeline: React.FC<TimelineProps> = ({ currentYear, currentDatetime, onYea
     const end = data.current.hui.end_year;
     const run = async () => {
       try {
-        const r = await fetch(`${API_BASE}/calculate?year=${start}`, {
+        const r = await fetch(`${API_BASE}/functions/v1/calculate?year=${start}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
@@ -90,7 +90,7 @@ const Timeline: React.FC<TimelineProps> = ({ currentYear, currentDatetime, onYea
     const end = Math.max(r1.end, r2.end, r3.end, r4.end);
     const fetchEvents = async () => {
       try {
-        const resp = await fetch(`${API_BASE}/history?start=${start}&end=${end}`, {
+        const resp = await fetch(`${API_BASE}/functions/v1/history?start=${start}&end=${end}`, {
           headers: {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json'

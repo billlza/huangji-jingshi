@@ -18,7 +18,7 @@ const SkyCard: React.FC<SkyCardProps> = ({ data, date, lat, lon, timezone, conta
     const SUPABASE_ANON_KEY = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_SUPABASE_ANON_KEY || '';
     (async () => {
       try {
-        const r = await fetch(`${API_BASE || ''}/sky`, {
+        const r = await fetch(`${API_BASE || ''}/functions/v1/sky`, {
           headers: {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json'

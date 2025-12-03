@@ -77,7 +77,7 @@ export default function Tools() {
           lon: params.lon.toString()
         });
         
-        const res = await fetch(`${API_BASE}/calculate?${q}`, {
+        const res = await fetch(`${API_BASE}/functions/v1/calculate?${q}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
@@ -98,7 +98,7 @@ export default function Tools() {
             lat: params.lat.toString(),
             lon: params.lon.toString()
           });
-          const res2 = await fetch(`${API_BASE}/calculate?${q2}`, {
+          const res2 = await fetch(`${API_BASE}/functions/v1/calculate?${q2}`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,

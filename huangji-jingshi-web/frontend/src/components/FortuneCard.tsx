@@ -47,7 +47,7 @@ const FortuneCard: React.FC<FortuneCardProps> = ({ data, currentYear, onJumpToYe
     const run = async () => {
       try {
         if (!yunRange) return;
-        const resp = await fetch(`${API_BASE}/history?year=${displayYear}&mode=yun&limit=3`, {
+        const resp = await fetch(`${API_BASE}/functions/v1/history?year=${displayYear}&mode=yun&limit=3`, {
           headers: {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json'
