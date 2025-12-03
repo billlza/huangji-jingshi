@@ -3,10 +3,10 @@
 services:
   # 后端服务
   - type: web
-    name: hjjs-backend-new
+    name: hjjs-backend
     env: node
     runtime: node
-    rootDir: huangji-jingshi-web/backend
+    rootDir: backend
     buildCommand: npm install
     startCommand: npm start
     envVars:
