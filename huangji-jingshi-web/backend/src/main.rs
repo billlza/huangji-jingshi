@@ -3,7 +3,7 @@ use axum::{
     Json, Router, extract::{Path, Query},
 };
 use axum::response::IntoResponse;
-use chrono::Utc;
+use chrono::{Utc, Datelike, Timelike};
 use serde::Deserialize;
 use tower_http::cors::CorsLayer;
 use std::sync::RwLock;
@@ -83,6 +83,9 @@ async fn main() {
         .route("/api/sky/settings", post(update_sky_settings))
         .route("/api/settings/sky", get(get_sky_settings))
         .route("/api/settings/sky", post(update_sky_settings))
+        
+        // 八字排盘 API
+        .route("/api/bazi", get(get_bazi))
         
         // 静态文件服务
         .route("/static/:file", get(static_handler))
@@ -265,6 +268,15 @@ struct HistoryRelatedQuery {
 #[derive(Deserialize)]
 struct MappingQuery {
     year: Option<i32>,
+}
+
+#[derive(Deserialize)]
+struct BaziQuery {
+    datetime: String,
+    timezone: Option<String>,
+    lat: Option<f64>,
+    lon: Option<f64>,
+    gender: Option<String>,
 }
 
 // 核心 API - 获取天象和运势数据
@@ -507,4 +519,139 @@ async fn static_handler(Path(file): Path<String>) -> impl IntoResponse {
     } else {
         Json(json!({ "error": "File not found", "file": file }))
     }
+}
+
+// ==================== 八字排盘 API ====================
+
+// 天干
+const TIANGAN: [&str; 10] = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"];
+// 地支
+const DIZHI: [&str; 12] = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
+// 生肖
+const SHENGXIAO: [&str; 12] = ["鼠", "牛", "虎", "兔", "龙", "蛇", "马", "羊", "猴", "鸡", "狗", "猪"];
+// 天干五行
+const GAN_WUXING: [&str; 10] = ["阳木", "阴木", "阳火", "阴火", "阳土", "阴土", "阳金", "阴金", "阳水", "阴水"];
+// 地支五行
+const ZHI_WUXING: [&str; 12] = ["阳水", "阴土", "阳木", "阴木", "阳土", "阴火", "阳火", "阴土", "阳金", "阴金", "阳土", "阴水"];
+// 纳音
+const NAYIN: [&str; 30] = [
+    "海中金", "炉中火", "大林木", "路旁土", "剑锋金", "山头火",
+    "涧下水", "城头土", "白蜡金", "杨柳木", "泉中水", "屋上土",
+    "霹雳火", "松柏木", "长流水", "砂石金", "山下火", "平地木",
+    "壁上土", "金箔金", "覆灯火", "天河水", "大驿土", "钗钏金",
+    "桑柘木", "大溪水", "沙中土", "天上火", "石榴木", "大海水"
+];
+
+// 八字排盘 API
+async fn get_bazi(Query(params): Query<BaziQuery>) -> impl IntoResponse {
+    tracing::info!("🔮 八字排盘请求: datetime={}, gender={:?}", params.datetime, params.gender);
+    
+    // 解析日期时间
+    let datetime = chrono::DateTime::parse_from_rfc3339(&params.datetime)
+        .map(|dt| dt.naive_utc())
+        .unwrap_or_else(|_| {
+            // 尝试其他格式
+            chrono::NaiveDateTime::parse_from_str(&params.datetime, "%Y-%m-%dT%H:%M:%S")
+                .unwrap_or_else(|_| chrono::Utc::now().naive_utc())
+        });
+    
+    let year = datetime.year();
+    let month = datetime.month() as i32;
+    let day = datetime.day() as i32;
+    let hour = datetime.hour() as i32;
+    
+    // 计算年柱
+    let year_gan_idx = ((year - 4) % 10 + 10) % 10;
+    let year_zhi_idx = ((year - 4) % 12 + 12) % 12;
+    
+    // 计算月柱（简化算法，实际应根据节气精确计算）
+    let month_gan_idx = ((year_gan_idx * 2 + month) % 10 + 10) % 10;
+    let month_zhi_idx = ((month + 1) % 12 + 12) % 12;
+    
+    // 计算日柱（简化算法）
+    let days_from_epoch = (datetime.and_utc().timestamp() / 86400) as i32;
+    let day_gan_idx = ((days_from_epoch + 9) % 10 + 10) % 10;  // 1970-01-01 是庚戌日
+    let day_zhi_idx = ((days_from_epoch + 10) % 12 + 12) % 12; // 戌是第11位(index 10)
+    
+    // 计算时柱
+    let hour_zhi_idx = ((hour + 1) / 2 % 12 + 12) % 12;
+    let hour_gan_idx = ((day_gan_idx * 2 + hour_zhi_idx) % 10 + 10) % 10;
+    
+    // 构建四柱
+    let create_pillar = |gan_idx: i32, zhi_idx: i32| -> serde_json::Value {
+        let gi = gan_idx as usize % 10;
+        let zi = zhi_idx as usize % 12;
+        let nayin_idx = ((gi / 2) * 6 + zi / 2) % 30;
+        
+        json!({
+            "gan": TIANGAN[gi],
+            "zhi": DIZHI[zi],
+            "gan_wuxing": GAN_WUXING[gi],
+            "zhi_wuxing": ZHI_WUXING[zi],
+            "zhi_animal": SHENGXIAO[zi],
+            "nayin": NAYIN[nayin_idx]
+        })
+    };
+    
+    let year_pillar = create_pillar(year_gan_idx, year_zhi_idx);
+    let month_pillar = create_pillar(month_gan_idx, month_zhi_idx);
+    let day_pillar = create_pillar(day_gan_idx, day_zhi_idx);
+    let hour_pillar = create_pillar(hour_gan_idx, hour_zhi_idx);
+    
+    // 统计五行
+    let mut wuxing_counts: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
+    wuxing_counts.insert("木".to_string(), 0);
+    wuxing_counts.insert("火".to_string(), 0);
+    wuxing_counts.insert("土".to_string(), 0);
+    wuxing_counts.insert("金".to_string(), 0);
+    wuxing_counts.insert("水".to_string(), 0);
+    
+    // 统计天干五行
+    for idx in [year_gan_idx, month_gan_idx, day_gan_idx, hour_gan_idx] {
+        let wx = GAN_WUXING[idx as usize % 10].replace("阳", "").replace("阴", "");
+        *wuxing_counts.entry(wx).or_insert(0) += 1;
+    }
+    // 统计地支五行
+    for idx in [year_zhi_idx, month_zhi_idx, day_zhi_idx, hour_zhi_idx] {
+        let wx = ZHI_WUXING[idx as usize % 12].replace("阳", "").replace("阴", "");
+        *wuxing_counts.entry(wx).or_insert(0) += 1;
+    }
+    
+    // 日主分析
+    let day_master = GAN_WUXING[day_gan_idx as usize % 10];
+    let day_master_wx = day_master.replace("阳", "").replace("阴", "");
+    let day_master_count = wuxing_counts.get(&day_master_wx).unwrap_or(&0);
+    
+    let strength = if *day_master_count >= 3 {
+        "strong"
+    } else if *day_master_count <= 1 {
+        "weak"
+    } else {
+        "balanced"
+    };
+    
+    // 缺失的五行
+    let missing: Vec<&str> = ["木", "火", "土", "金", "水"]
+        .iter()
+        .filter(|wx| *wuxing_counts.get(**wx).unwrap_or(&0) == 0)
+        .copied()
+        .collect();
+    
+    let gender = params.gender.unwrap_or_else(|| "male".to_string());
+    
+    Json(json!({
+        "year_pillar": year_pillar,
+        "month_pillar": month_pillar,
+        "day_pillar": day_pillar,
+        "hour_pillar": hour_pillar,
+        "wuxing_analysis": {
+            "day_master": day_master,
+            "day_master_strength": strength,
+            "wuxing_counts": wuxing_counts,
+            "missing_wuxing": missing
+        },
+        "gender": gender,
+        "zodiac": SHENGXIAO[year_zhi_idx as usize % 12],
+        "solar_term": null
+    }))
 }

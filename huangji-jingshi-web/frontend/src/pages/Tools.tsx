@@ -5,6 +5,7 @@ import ControlPanel from '../components/ControlPanel';
 import FortuneCard from '../components/FortuneCard';
 import SkyCard from '../components/SkyCard';
 import Timeline from '../components/Timeline';
+import BaziCard from '../components/BaziCard';
 import type { CombinedResponse, SkyResponse } from '../types';
 import { Link } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
@@ -320,6 +321,11 @@ export default function Tools() {
                   后端不可用，已显示离线星图（仅基础星空，无运势数据）。
                </div>
             )}
+
+            {/* 人生命盘 - 八字排盘 */}
+            <BaziCard 
+              observeParams={params}
+            />
 
           </div>
         </div>

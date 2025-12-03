@@ -1,0 +1,313 @@
+/**
+ * BaziChartView - 八字四柱展示组件
+ * 展示年柱、月柱、日柱（日主高亮）、时柱
+ */
+
+import { useState } from 'react';
+import { Info, ChevronRight, Sparkles } from 'lucide-react';
+
+export interface BaziResult {
+  // 四柱
+  year_pillar: Pillar;
+  month_pillar: Pillar;
+  day_pillar: Pillar;   // 日主
+  hour_pillar: Pillar;
+  
+  // 五行分析
+  wuxing_analysis: {
+    day_master: string;        // 日主五行，如 "阳木"
+    day_master_strength: 'strong' | 'weak' | 'balanced';  // 旺/弱/中和
+    wuxing_counts: Record<string, number>;  // 五行统计
+    missing_wuxing: string[];   // 缺失的五行
+  };
+  
+  // 其他信息
+  gender: 'male' | 'female' | 'other';
+  solar_term?: string;
+  zodiac?: string;
+}
+
+interface Pillar {
+  gan: string;       // 天干
+  zhi: string;       // 地支
+  gan_wuxing: string;  // 天干五行
+  zhi_wuxing: string;  // 地支五行
+  zhi_animal: string;  // 生肖
+  nayin: string;       // 纳音
+}
+
+interface BaziChartViewProps {
+  data: BaziResult | null;
+  isLoading: boolean;
+}
+
+// 五行颜色映射
+const WUXING_COLORS: Record<string, { bg: string; text: string; border: string; glow: string }> = {
+  '木': { bg: 'bg-emerald-500/20', text: 'text-emerald-300', border: 'border-emerald-500/40', glow: 'shadow-emerald-500/20' },
+  '火': { bg: 'bg-red-500/20', text: 'text-red-300', border: 'border-red-500/40', glow: 'shadow-red-500/20' },
+  '土': { bg: 'bg-amber-500/20', text: 'text-amber-300', border: 'border-amber-500/40', glow: 'shadow-amber-500/20' },
+  '金': { bg: 'bg-slate-300/20', text: 'text-slate-200', border: 'border-slate-300/40', glow: 'shadow-slate-300/20' },
+  '水': { bg: 'bg-blue-500/20', text: 'text-blue-300', border: 'border-blue-500/40', glow: 'shadow-blue-500/20' },
+};
+
+// 获取五行（从"阳木"等提取"木"）
+const extractWuxing = (s: string) => s.replace(/[阴阳]/g, '');
+
+export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
+  const [showDetail, setShowDetail] = useState(false);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-full border-2 border-gold/30 border-t-gold animate-spin" />
+            <Sparkles className="absolute inset-0 m-auto w-6 h-6 text-gold/50" />
+          </div>
+          <span className="text-sm text-gray-400">正在推算命盘...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+        <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-4">
+          <Sparkles className="w-8 h-8 opacity-30" />
+        </div>
+        <p className="text-sm">输入出生信息后排盘</p>
+      </div>
+    );
+  }
+
+  const pillars = [
+    { label: '年柱', data: data.year_pillar, isMain: false },
+    { label: '月柱', data: data.month_pillar, isMain: false },
+    { label: '日柱', data: data.day_pillar, isMain: true },  // 日主高亮
+    { label: '时柱', data: data.hour_pillar, isMain: false },
+  ];
+
+  const strengthLabel = {
+    strong: '偏旺',
+    weak: '偏弱',
+    balanced: '中和'
+  }[data.wuxing_analysis.day_master_strength];
+
+  const strengthColor = {
+    strong: 'text-emerald-400',
+    weak: 'text-blue-400',
+    balanced: 'text-amber-400'
+  }[data.wuxing_analysis.day_master_strength];
+
+  return (
+    <div className="space-y-6">
+      {/* 四柱卡片 */}
+      <div className="grid grid-cols-4 gap-3">
+        {pillars.map((pillar, idx) => {
+          const ganWuxing = extractWuxing(pillar.data.gan_wuxing);
+          const zhiWuxing = extractWuxing(pillar.data.zhi_wuxing);
+          const colors = WUXING_COLORS[ganWuxing] || WUXING_COLORS['土'];
+          
+          return (
+            <div
+              key={pillar.label}
+              className={`relative rounded-2xl border p-4 transition-all ${
+                pillar.isMain
+                  ? `${colors.bg} ${colors.border} shadow-lg ${colors.glow}`
+                  : 'bg-white/5 border-white/10 hover:border-white/20'
+              }`}
+              style={{ animationDelay: `${idx * 100}ms` }}
+            >
+              {/* 标签 */}
+              <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-3 text-center">
+                {pillar.label}
+                {pillar.isMain && (
+                  <span className="ml-1 text-gold">★</span>
+                )}
+              </div>
+              
+              {/* 干支 */}
+              <div className="text-center space-y-1">
+                {/* 天干 */}
+                <div className={`text-2xl font-bold font-serif ${colors.text}`}>
+                  {pillar.data.gan}
+                </div>
+                {/* 地支 */}
+                <div className="text-2xl font-bold font-serif text-white/90">
+                  {pillar.data.zhi}
+                </div>
+              </div>
+              
+              {/* 五行标签 */}
+              <div className="mt-3 text-center space-y-1">
+                <div className={`text-[10px] ${colors.text}`}>
+                  {pillar.data.gan_wuxing}
+                </div>
+                <div className="text-[10px] text-gray-400">
+                  {pillar.data.zhi_wuxing} · {pillar.data.zhi_animal}
+                </div>
+              </div>
+              
+              {/* 纳音 */}
+              <div className="mt-2 text-center">
+                <span className="text-[9px] px-2 py-0.5 rounded-full bg-black/30 text-gray-400">
+                  {pillar.data.nayin}
+                </span>
+              </div>
+              
+              {/* 日主标识 */}
+              {pillar.isMain && (
+                <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gold flex items-center justify-center shadow-lg shadow-gold/30">
+                  <span className="text-[10px] text-black font-bold">主</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 五行分析摘要 */}
+      <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">日主</span>
+            <span className={`text-sm font-bold ${WUXING_COLORS[extractWuxing(data.wuxing_analysis.day_master)]?.text || 'text-white'}`}>
+              {data.wuxing_analysis.day_master}
+            </span>
+          </div>
+          <div className="w-px h-4 bg-white/10" />
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">格局</span>
+            <span className={`text-sm font-medium ${strengthColor}`}>
+              {strengthLabel}
+            </span>
+          </div>
+          {data.wuxing_analysis.missing_wuxing.length > 0 && (
+            <>
+              <div className="w-px h-4 bg-white/10" />
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">缺</span>
+                <span className="text-sm text-red-400">
+                  {data.wuxing_analysis.missing_wuxing.join('、')}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+        
+        {/* 五行分布 */}
+        <div className="flex items-center gap-1">
+          {['木', '火', '土', '金', '水'].map(wx => {
+            const count = data.wuxing_analysis.wuxing_counts[wx] || 0;
+            const colors = WUXING_COLORS[wx];
+            return (
+              <div
+                key={wx}
+                className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold ${
+                  count > 0 ? `${colors.bg} ${colors.text}` : 'bg-white/5 text-gray-600'
+                }`}
+                title={`${wx}: ${count}`}
+              >
+                {count}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 详细分析按钮 */}
+      <button
+        onClick={() => setShowDetail(true)}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:border-white/20 transition-all group"
+      >
+        <Info className="w-4 h-4" />
+        <span className="text-sm">详细分析</span>
+        <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+      </button>
+
+      {/* 详细分析 Modal */}
+      {showDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowDetail(false)}>
+          <div 
+            className="w-full max-w-2xl max-h-[80vh] overflow-y-auto bg-[#0a0a12] border border-white/10 rounded-3xl p-6 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-gold">命盘详细分析</h3>
+              <button
+                onClick={() => setShowDetail(false)}
+                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-6 text-sm text-gray-300">
+              {/* 基础信息 */}
+              <section>
+                <h4 className="text-xs text-gray-500 uppercase tracking-widest mb-3">基础信息</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 rounded-xl bg-white/5">
+                    <span className="text-gray-500">生肖：</span>
+                    <span className="ml-2">{data.zodiac || data.year_pillar.zhi_animal}</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-white/5">
+                    <span className="text-gray-500">日主：</span>
+                    <span className={`ml-2 ${WUXING_COLORS[extractWuxing(data.wuxing_analysis.day_master)]?.text}`}>
+                      {data.day_pillar.gan} ({data.wuxing_analysis.day_master})
+                    </span>
+                  </div>
+                </div>
+              </section>
+              
+              {/* 五行详解 */}
+              <section>
+                <h4 className="text-xs text-gray-500 uppercase tracking-widest mb-3">五行分布</h4>
+                <div className="space-y-2">
+                  {['木', '火', '土', '金', '水'].map(wx => {
+                    const count = data.wuxing_analysis.wuxing_counts[wx] || 0;
+                    const max = Math.max(...Object.values(data.wuxing_analysis.wuxing_counts));
+                    const pct = max > 0 ? (count / max) * 100 : 0;
+                    const colors = WUXING_COLORS[wx];
+                    return (
+                      <div key={wx} className="flex items-center gap-3">
+                        <span className={`w-8 text-center font-bold ${colors.text}`}>{wx}</span>
+                        <div className="flex-1 h-2 rounded-full bg-white/5 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${colors.bg} transition-all duration-500`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="w-6 text-right text-gray-500">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+              
+              {/* 纳音 */}
+              <section>
+                <h4 className="text-xs text-gray-500 uppercase tracking-widest mb-3">纳音五行</h4>
+                <div className="grid grid-cols-4 gap-2">
+                  {pillars.map(p => (
+                    <div key={p.label} className="text-center p-2 rounded-lg bg-white/5">
+                      <div className="text-xs text-gray-500 mb-1">{p.label}</div>
+                      <div className="text-sm">{p.data.nayin}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+              
+              {/* 提示 */}
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200/80 text-xs">
+                <strong className="text-amber-300">提示：</strong> 完整的八字分析需要结合十神、大运、流年等更多因素。此处仅展示基础命盘信息，后续版本将加入更详细的分析功能。
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
