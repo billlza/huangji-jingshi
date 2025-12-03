@@ -64,10 +64,41 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
     }
   }, []);
 
+  // 逆地理编码：经纬度转地名
+  const reverseGeocode = async (latitude: number, longitude: number): Promise<string> => {
+    try {
+      // 使用 OpenStreetMap Nominatim 逆地理编码
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=zh-CN`,
+        {
+          signal: AbortSignal.timeout(5000),
+          headers: {
+            'User-Agent': 'HuangjiJingshiWeb/1.0'
+          }
+        }
+      );
+      
+      if (res.ok) {
+        const data = await res.json();
+        const address = data.address;
+        
+        // 优先显示：城市 > 县 > 省
+        return address.city || address.town || address.county || address.state || data.display_name.split(',')[0] || '未知地点';
+      }
+    } catch (error) {
+      console.log('逆地理编码失败', error);
+    }
+    return '';
+  };
+
   // 获取定位
   const handleLocate = async () => {
     setLocating(true);
     setLocateError(null);
+    
+    let latitude: number | null = null;
+    let longitude: number | null = null;
+    let source = '';
     
     // 方法1: 尝试 GPS/BDS 定位
     if ('geolocation' in navigator) {
@@ -80,33 +111,58 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
           });
         });
         
-        setLat(Number(position.coords.latitude.toFixed(4)));
-        setLon(Number(position.coords.longitude.toFixed(4)));
-        setLocationName('GPS定位');
-        setLocating(false);
-        return;
+        latitude = Number(position.coords.latitude.toFixed(4));
+        longitude = Number(position.coords.longitude.toFixed(4));
+        source = 'GPS';
+        
+        console.log('GPS定位成功:', latitude, longitude);
       } catch (gpsError) {
         console.log('GPS定位失败，尝试IP定位...', gpsError);
       }
     }
     
-    // 方法2: 尝试 IP 定位
-    try {
-      const res = await fetch('https://ipapi.co/json/', { 
-        signal: AbortSignal.timeout(5000) 
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.latitude && data.longitude) {
-          setLat(Number(Number(data.latitude).toFixed(4)));
-          setLon(Number(Number(data.longitude).toFixed(4)));
-          setLocationName(data.city || data.region || 'IP定位');
-          setLocating(false);
-          return;
+    // 方法2: 如果GPS失败，尝试 IP 定位
+    if (latitude === null || longitude === null) {
+      try {
+        const res = await fetch('https://ipapi.co/json/', { 
+          signal: AbortSignal.timeout(5000) 
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.latitude && data.longitude) {
+            latitude = Number(Number(data.latitude).toFixed(4));
+            longitude = Number(Number(data.longitude).toFixed(4));
+            source = 'IP';
+            
+            // IP定位直接返回城市名
+            setLat(latitude);
+            setLon(longitude);
+            setLocationName(data.city || data.region || '未知地点');
+            setLocating(false);
+            return;
+          }
         }
+      } catch (ipError) {
+        console.log('IP定位失败', ipError);
       }
-    } catch (ipError) {
-      console.log('IP定位失败', ipError);
+    }
+    
+    // 如果获取到了坐标（GPS或IP）
+    if (latitude !== null && longitude !== null) {
+      setLat(latitude);
+      setLon(longitude);
+      
+      // 进行逆地理编码获取地名
+      const locationName = await reverseGeocode(latitude, longitude);
+      if (locationName) {
+        setLocationName(locationName);
+      } else {
+        // 如果逆地理编码失败，显示来源标识
+        setLocationName(source === 'GPS' ? 'GPS定位' : 'IP定位');
+      }
+      
+      setLocating(false);
+      return;
     }
     
     // 都失败了
