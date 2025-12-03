@@ -252,6 +252,8 @@ struct SkyFortuneQuery {
     lon: Option<f64>,
 }
 
+// HistoryQuery 保留用于将来的历史数据过滤
+#[allow(dead_code)]
 #[derive(Deserialize)]
 struct HistoryQuery {
     start: Option<i32>,
@@ -261,7 +263,8 @@ struct HistoryQuery {
 #[derive(Deserialize)]
 struct HistoryRelatedQuery {
     year: Option<i32>,
-    mode: Option<String>,
+    #[allow(dead_code)]
+    mode: Option<String>,  // 保留用于将来的查询模式
     limit: Option<i32>,
 }
 
@@ -273,9 +276,12 @@ struct MappingQuery {
 #[derive(Deserialize)]
 struct BaziQuery {
     datetime: String,
-    timezone: Option<String>,
-    lat: Option<f64>,
-    lon: Option<f64>,
+    #[allow(dead_code)]
+    timezone: Option<String>,  // 保留用于真太阳时计算
+    #[allow(dead_code)]
+    lat: Option<f64>,          // 保留用于地方时校正
+    #[allow(dead_code)]
+    lon: Option<f64>,          // 保留用于地方时校正
     gender: Option<String>,
 }
 
@@ -557,7 +563,6 @@ async fn get_bazi(Query(params): Query<BaziQuery>) -> impl IntoResponse {
     
     let year = datetime.year();
     let month = datetime.month() as i32;
-    let day = datetime.day() as i32;
     let hour = datetime.hour() as i32;
     
     // 计算年柱
