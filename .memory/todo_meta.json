@@ -3,36 +3,36 @@
     "Coordinator": {
       "1": {
         "id": "1",
-        "content": "分析和准备部署环境",
-        "details": "1. 分析现有项目结构和依赖\n2. 检查 Supabase 配置和连接\n3. 准备部署环境和文件",
-        "status": "pending",
+        "content": "获取Supabase认证并复制项目文件",
+        "details": "1. 获取Supabase项目认证信息\n2. 将项目文件复制到工作目录\n3. 检查和调整配置",
+        "status": "in_progress",
         "priority": "high"
       },
       "2": {
         "id": "2",
-        "content": "部署 Supabase 后端服务",
-        "details": "1. 配置 Supabase 数据库和存储\n2. 运行数据库迁移脚本\n3. 设置存储桶和策略\n4. 配置 Edge Functions (如果需要)",
+        "content": "部署前端应用",
+        "details": "1. 安装前端依赖\n2. 配置Supabase连接\n3. 构建并部署前端",
         "status": "pending",
         "priority": "high"
       },
       "3": {
         "id": "3",
-        "content": "构建和部署前端应用",
-        "details": "1. 安装依赖并构建 React 前端\n2. 优化生产配置\n3. 部署到静态托管服务",
+        "content": "构建和部署后端服务",
+        "details": "1. 编译Rust后端应用\n2. 配置运行环境和依赖\n3. 部署到云服务",
         "status": "pending",
         "priority": "medium"
       },
       "4": {
         "id": "4",
-        "content": "部署 Rust 后端服务",
-        "details": "1. 编译 Rust 后端应用\n2. 配置运行环境和依赖\n3. 部署到云服务或容器",
+        "content": "测试前后端集成",
+        "details": "1. 测试前后端连接\n2. 验证所有功能正常工作\n3. 优化配置",
         "status": "pending",
         "priority": "medium"
       },
       "5": {
         "id": "5",
-        "content": "测试和优化部署",
-        "details": "1. 测试前后端连接\n2. 验证所有功能正常工作\n3. 优化性能和配置\n4. 提供访问链接",
+        "content": "完成部署并提供访问链接",
+        "details": "1. 确认所有服务正常运行\n2. 提供最终的访问链接\n3. 提供使用说明",
         "status": "pending",
         "priority": "medium"
       }
