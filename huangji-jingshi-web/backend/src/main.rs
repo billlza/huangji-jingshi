@@ -351,20 +351,19 @@ async fn get_sky_and_fortune(Query(params): Query<SkyFortuneQuery>) -> impl Into
     }))
 }
 
-// 获取历史相关事件
+// 获取历史相关事件 - 返回纯数组，不是对象
 async fn get_history_related(Query(params): Query<HistoryRelatedQuery>) -> impl IntoResponse {
     let year = params.year.unwrap_or(2025);
     let _limit = params.limit.unwrap_or(3);
     
     tracing::debug!("📚 获取相关历史: year={}, limit={}", year, _limit);
     
-    Json(json!({
-        "events": [
-            {"year": year - 60, "title": "甲子年事件", "description": "六十年前的重要历史事件"},
-            {"year": year - 120, "title": "往年大事", "description": "一百二十年前的历史记载"},
-            {"year": year - 180, "title": "古代记录", "description": "一百八十年前的历史文献"}
-        ]
-    }))
+    // 直接返回数组，不要包装在 { events: [...] } 中
+    Json(json!([
+        {"year": year - 60, "title": "甲子年事件", "dynasty": "近代", "person": ""},
+        {"year": year - 120, "title": "往年大事", "dynasty": "清朝", "person": ""},
+        {"year": year - 180, "title": "古代记录", "dynasty": "清朝", "person": ""}
+    ]))
 }
 
 // 获取映射记录
@@ -468,9 +467,15 @@ async fn get_timeline(Query(params): Query<TimelineQuery>) -> impl IntoResponse 
     }
 }
 
-// 获取历史数据
+// 获取历史数据 - 返回数组格式
 async fn get_history() -> impl IntoResponse {
-    Json(HISTORY_DATA.read().unwrap().clone())
+    let data = HISTORY_DATA.read().unwrap().clone();
+    // 如果数据为 null 或不是数组，返回空数组
+    if data.is_null() || !data.is_array() {
+        Json(json!([]))
+    } else {
+        Json(data)
+    }
 }
 
 // 获取天体哈希
