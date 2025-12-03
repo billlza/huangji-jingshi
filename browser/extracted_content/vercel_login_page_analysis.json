@@ -1,0 +1,26 @@
+📄 Extracted from page: Login – Vercel
+URL: https://vercel.com/login?next=%2Fsso-api%3Furl%3Dhttps%253A%252F%252Fhuangji-jingshi-3ewpy201u-li-ziang-s-projects.vercel.app%252F%26nonce%3D737249d5427270244d93ca4334cefb8f996cad2e5a6854ee19614040c978774d
+
+Extracted content:
+```json
+{
+  "title": "Login – Vercel",
+  "url": "https://vercel.com/login?next=%2Fsso-api%3Furl%3Dhttps%253A%252F%252Fhuangji-jingshi-3ewpy201u-li-ziang-s-projects.vercel.app%252F%26nonce%3D737249d5427270244d93ca4334cefb8f996cad2e5a6854ee19614040c978774d",
+  "summary": "The Vercel login page presents various methods for users to access their accounts. The primary call to action is 'Log in to Vercel', followed by options to continue with email, Google, GitHub, SAML SSO, or Passkey. There's also an option to 'Show other options'. For new users, a 'Sign Up' link is prominently displayed. The page includes standard footer links for 'Terms' and 'Privacy Policy'. The URL itself indicates a redirection parameter (`next`) after successful login, pointing to a specific Vercel project's SSO API, suggesting the login is part of an authentication flow for an application.",
+  "key_points": [
+    "Page title is 'Login – Vercel'.",
+    "Main heading on the page is 'Log in to Vercel'.",
+    "Users can log in using multiple methods: Email, Google, GitHub, SAML SSO, and Passkey.",
+    "An option to 'Show other options' is present, suggesting more login methods might be available.",
+    "A 'Sign Up' link is provided for users who do not have an account.",
+    "The page includes links to Vercel's 'Terms' and 'Privacy Policy'.",
+    "The URL contains a `next` parameter, indicating a redirect to an SSO API for a specific Vercel project after successful login."
+  ],
+  "relevant_links": [
+    "/signup?next=%2Fsso-api%3Furl%3Dhttps%253A%252F%252Fhuangji-jingshi-3ewpy201u-li-ziang-s-projects.vercel.app%252F%26nonce%3D737249d5427270244d93ca4334cefb8f996cad2e5a6854ee19614040c978774d",
+    "/legal/terms",
+    "/legal/privacy-policy"
+  ],
+  "file_name": "vercel_login_page_analysis.json"
+}
+```
