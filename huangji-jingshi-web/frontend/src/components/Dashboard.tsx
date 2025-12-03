@@ -19,12 +19,16 @@ const Dashboard: React.FC<DashboardProps> = ({ info, currentYear, onJumpToYear }
         const nextS = info.shi.end_year + 1;
         const nextX = info.xun.end_year + 1;
         const fetchOne = async (y: number) => {
-          const r = await fetch(`${API_BASE}/functions/v1/timeline?datetime=${y}-06-30T12:00:00Z&birthDate=${y}-06-30T12:00:00Z`, {
+          const r = await fetch(`${API_BASE}/functions/v1/timeline`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
               'Content-Type': 'application/json'
-            }
+            },
+            body: JSON.stringify({
+              datetime: `${y}-06-30T12:00:00Z`,
+              birthDate: `${y}-06-30T12:00:00Z`
+            })
           });
           const j = await r.json();
           return j as { current: HuangjiInfo };
