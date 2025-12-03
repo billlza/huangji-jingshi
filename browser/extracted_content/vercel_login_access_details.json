@@ -1,0 +1,24 @@
+📄 Extracted from page: Login – Vercel
+URL: https://vercel.com/login?next=%2Fsso-api%3Furl%3Dhttps%253A%252F%252Fhuangji-jingshi-3ewpy201u-li-ziang-s-projects.vercel.app%252F%26nonce%3D737249d5427270244d93ca4334cefb8f996cad2e5a6854ee19614040c978774d
+
+Extracted content:
+```json
+{
+    "title": "Login – Vercel",
+    "url": "https://vercel.com/login?next=%2Fsso-api%3Furl%3Dhttps%253A%252F%252Fhuangji-jingshi-3ewpy201u-li-ziang-s-projects.vercel.app%252F%26nonce%3D737249d5427270244d93ca4334cefb8f996cad2e5a6854ee19614040c978774d",
+    "summary": "This page is the Vercel login portal, indicating that access to a specific Vercel project (`https://huangji-jingshi-3ewpy201u-li-ziang-s-projects.vercel.app/`) is restricted and requires authentication. Users must log in using one of the provided methods to proceed. New users have an option to sign up.",
+    "key_points": [
+        "The page serves as a login gateway for Vercel services.",
+        "Access to the target resource, identified as `https://huangji-jingshi-3ewpy201u-li-ziang-s-projects.vercel.app/`, is restricted and necessitates user authentication.",
+        "Authentication requirements include options to 'Continue with Email', 'Continue with Google', 'Continue with GitHub', 'Continue with SAML SSO', and 'Continue with Passkey'.",
+        "The current 'status' of the original project from this page's perspective is 'inaccessible without login'.",
+        "A 'Sign Up' option is available for users who do not yet have a Vercel account."
+    ],
+    "relevant_links": [
+        "/signup?next=%2Fsso-api%3Furl%3Dhttps%3A%2F%2Fhuangji-jingshi-3ewpy201u-li-ziang-s-projects.vercel.app%2F%26nonce%3D737249d5427270244d93ca4334cefb8f996cad2e5a6854ee19614040c978774d",
+        "/legal/terms",
+        "/legal/privacy-policy"
+    ],
+    "file_name": "vercel_login_access_details.json"
+}
+```
