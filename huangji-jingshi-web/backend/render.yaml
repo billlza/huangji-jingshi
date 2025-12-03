@@ -1,21 +1,12 @@
-# 皇极经世后端修复部署配置
-
 services:
-  # 修复版本后端服务
   - type: web
-    name: hjjs-backend-fixed
-    env: production
+    name: hjjs-backend-simple
+    env: rust
+    plan: free
     buildCommand: cargo build --release
     startCommand: ./target/release/backend
     envVars:
       - key: RUST_LOG
         value: info
-      - key: SUPABASE_URL
-        value: https://nunotqruohnfoozorqiz.supabase.co
-      - key: SUPABASE_KEY
-        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51bm90cXJ1b2huZm9vem9ycWl6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDQ2NjY2MiwiZXhwIjoyMDgwMDQyNjYyfQ.a_-2C0z0jgAu3bD-BFBG4ONi1kKyz7fn4cnSlBlY-eE
-
-# 注意：
-# 1. 这个配置文件用于部署修复版本
-# 2. 使用 hjjs-backend-fixed 作为服务名，避免与现有服务冲突
-# 3. 如果测试通过，可以删除旧服务
+      - key: PORT
+        value: "3000"
