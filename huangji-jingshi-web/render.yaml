@@ -1,16 +1,15 @@
-# Render 部署配置 - 仅后端服务（前端已部署在 Vercel）
+# Render 部署配置 - Node.js 后端服务（前端已部署在 Vercel）
 
 services:
   # 后端服务
   - type: web
-    name: hjjs-backend
-    env: production
-    rootDir: huangji-jingshi-web
-    buildCommand: cd backend && cargo build --release
-    startCommand: cd backend && ./target/release/backend
+    name: hjjs-backend-new
+    env: node
+    runtime: node
+    rootDir: huangji-jingshi-web/backend
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
-      - key: RUST_LOG
-        value: info
       - key: SUPABASE_URL
         value: https://nunotqruohnfoozorqiz.supabase.co
       - key: SUPABASE_KEY
