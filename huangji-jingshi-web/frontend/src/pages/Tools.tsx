@@ -240,14 +240,17 @@ export default function Tools() {
         {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
-          {/* Left Column: Input Controls (Sticky on Desktop) */}
-          <div className="lg:col-span-3 lg:sticky lg:top-6 space-y-6">
-             <div className="glass-panel rounded-3xl p-6">
-               <ControlPanel 
-                 initialParams={params} 
-                 onCalculate={handleCalculate} 
-                 isLoading={loading} 
-               />
+          {/* Left Column: Input Controls */}
+          <div className="lg:col-span-3 space-y-6">
+             {/* 天机演算 - Sticky */}
+             <div className="lg:sticky lg:top-6">
+               <div className="glass-panel rounded-3xl p-6">
+                 <ControlPanel 
+                   initialParams={params} 
+                   onCalculate={handleCalculate} 
+                   isLoading={loading} 
+                 />
+               </div>
              </div>
              
              {/* Error Message Block */}
@@ -256,6 +259,11 @@ export default function Tools() {
                 <strong className="text-red-400">System Error:</strong><br/>{error}
               </div>
              )}
+
+             {/* 人生命盘 - 八字排盘 */}
+             <BaziCard 
+               observeParams={params}
+             />
           </div>
 
           {/* Right Column: Results */}
@@ -321,11 +329,6 @@ export default function Tools() {
                   后端不可用，已显示离线星图（仅基础星空，无运势数据）。
                </div>
             )}
-
-            {/* 人生命盘 - 八字排盘 */}
-            <BaziCard 
-              observeParams={params}
-            />
 
           </div>
         </div>

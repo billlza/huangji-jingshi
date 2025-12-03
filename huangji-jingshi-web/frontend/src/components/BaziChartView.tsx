@@ -103,7 +103,7 @@ export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
   return (
     <div className="space-y-6">
       {/* 四柱卡片 */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         {pillars.map((pillar, idx) => {
           const ganWuxing = extractWuxing(pillar.data.gan_wuxing);
           const zhiWuxing = extractWuxing(pillar.data.zhi_wuxing);
@@ -168,48 +168,49 @@ export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
       </div>
 
       {/* 五行分析摘要 */}
-      <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">日主</span>
-            <span className={`text-sm font-bold ${WUXING_COLORS[extractWuxing(data.wuxing_analysis.day_master)]?.text || 'text-white'}`}>
-              {data.wuxing_analysis.day_master}
-            </span>
-          </div>
-          <div className="w-px h-4 bg-white/10" />
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">格局</span>
-            <span className={`text-sm font-medium ${strengthColor}`}>
-              {strengthLabel}
-            </span>
+      <div className="p-3 rounded-xl bg-white/5 border border-white/10 space-y-3">
+        {/* 日主和格局 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-gray-500">日主</span>
+              <span className={`text-sm font-bold ${WUXING_COLORS[extractWuxing(data.wuxing_analysis.day_master)]?.text || 'text-white'}`}>
+                {data.wuxing_analysis.day_master}
+              </span>
+            </div>
+            <div className="w-px h-3 bg-white/10" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-gray-500">格局</span>
+              <span className={`text-xs font-medium ${strengthColor}`}>
+                {strengthLabel}
+              </span>
+            </div>
           </div>
           {data.wuxing_analysis.missing_wuxing.length > 0 && (
-            <>
-              <div className="w-px h-4 bg-white/10" />
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">缺</span>
-                <span className="text-sm text-red-400">
-                  {data.wuxing_analysis.missing_wuxing.join('、')}
-                </span>
-              </div>
-            </>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-gray-500">缺</span>
+              <span className="text-xs text-red-400">
+                {data.wuxing_analysis.missing_wuxing.join('')}
+              </span>
+            </div>
           )}
         </div>
         
         {/* 五行分布 */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center justify-center gap-1">
           {['木', '火', '土', '金', '水'].map(wx => {
             const count = data.wuxing_analysis.wuxing_counts[wx] || 0;
             const colors = WUXING_COLORS[wx];
             return (
               <div
                 key={wx}
-                className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold ${
+                className={`flex-1 h-7 rounded flex flex-col items-center justify-center text-[9px] ${
                   count > 0 ? `${colors.bg} ${colors.text}` : 'bg-white/5 text-gray-600'
                 }`}
                 title={`${wx}: ${count}`}
               >
-                {count}
+                <span className="font-bold">{count}</span>
+                <span className="opacity-60">{wx}</span>
               </div>
             );
           })}

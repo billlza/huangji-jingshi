@@ -70,31 +70,25 @@ export default function BaziCard({ observeParams }: BaziCardProps) {
       </div>
 
       {/* 内容区域 */}
-      <div className="p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* 左侧：输入表单 */}
-          <div>
-            <BaziForm
-              observeParams={observeParams}
-              onSubmit={handleSubmit}
-              isLoading={loading}
-            />
-            
-            {error && (
-              <div className="mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs">
-                {error}
-              </div>
-            )}
+      <div className="p-6 space-y-6">
+        {/* 输入表单 */}
+        <BaziForm
+          observeParams={observeParams}
+          onSubmit={handleSubmit}
+          isLoading={loading}
+        />
+        
+        {error && (
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs">
+            {error}
           </div>
-          
-          {/* 右侧：四柱结果 */}
-          <div>
-            <BaziChartView
-              data={result}
-              isLoading={loading}
-            />
-          </div>
-        </div>
+        )}
+        
+        {/* 四柱结果 */}
+        <BaziChartView
+          data={result}
+          isLoading={loading}
+        />
       </div>
     </div>
   );
