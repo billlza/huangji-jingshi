@@ -1,0 +1,59 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "hj_polaris",
+      "properties": {
+        "name_cn": "北极一",
+        "name_hj": "紫微帝星",
+        "hip": 11767,
+        "mag": 2.0,
+        "gua": "坤",
+        "fenye": "中宫",
+        "note": "皇极经世中的帝座基准",
+        "tags": ["紫微", "中枢"]
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [37.9546, 89.2641]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_vega",
+      "properties": {
+        "name_cn": "织女一",
+        "name_hj": "织女",
+        "hip": 91262,
+        "mag": 0.03,
+        "gua": "离",
+        "fenye": "女宿",
+        "note": "二十八宿女宿代表星",
+        "tags": ["二十八宿"]
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [279.23473479, 38.78368896]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hj_altair",
+      "properties": {
+        "name_cn": "河鼓二",
+        "name_hj": "河鼓",
+        "hip": 97649,
+        "mag": 0.77,
+        "gua": "坎",
+        "fenye": "牛宿",
+        "note": "牛宿代表星",
+        "tags": ["二十八宿"]
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [297.69582731, 8.86832120]
+      }
+    }
+  ]
+}

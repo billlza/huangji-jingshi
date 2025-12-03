@@ -1,0 +1,25 @@
+{
+  "events": [
+    {
+      "year": 2025,
+      "title": "Total lunar eclipse (Mar 13–14, 2025)",
+      "description": "The Moon enters Earth's umbra, creating a total lunar eclipse visible across the Americas, Europe, Africa, and parts of Asia.",
+      "category": "Astronomy",
+      "tags": ["Eclipse", "Lunar", "NASA"]
+    },
+    {
+      "year": 2025,
+      "title": "Partial solar eclipse (Mar 29, 2025)",
+      "description": "A partial solar eclipse visible across parts of North America, Europe, Africa, and Asia; proper eye protection required at all times.",
+      "category": "Astronomy",
+      "tags": ["Eclipse", "Solar", "NASA"]
+    },
+    {
+      "year": 2026,
+      "title": "Total solar eclipse (Aug 12, 2026)",
+      "description": "Totality path crosses Greenland, Iceland, Atlantic, Portugal, and northern Spain; a rare event over continental Europe.",
+      "category": "Astronomy",
+      "tags": ["Eclipse", "Solar", "NSO"]
+    }
+  ]
+}
