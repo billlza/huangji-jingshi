@@ -280,72 +280,72 @@ async fn get_sky_and_fortune(Query(params): Query<SkyFortuneQuery>) -> impl Into
     
     tracing::info!("🌟 获取天象运势: {} @ ({}, {})", params.datetime, lat, lon);
     
-    // 返回完整的天象和运势数据，字段名与前端期望一致
+    // 返回完整的天象和运势数据，完全匹配前端 CombinedResponse 类型
     Json(json!({
         "sky": {
-            "datetime": params.datetime,
-            "location": {
-                "lat": lat,
-                "lon": lon
-            },
-            "jd": 2460649.0,
-            "gmst_deg": 123.456,
-            "delta_t_sec": 69.184,
             "bodies": [
-                {"name": "Sun", "ra_deg": 250.5, "dec_deg": -23.2, "alt_deg": 45.0, "az_deg": 180.0},
-                {"name": "Moon", "ra_deg": 120.3, "dec_deg": 15.6, "alt_deg": 60.0, "az_deg": 120.0},
-                {"name": "Mercury", "ra_deg": 245.0, "dec_deg": -20.0, "alt_deg": 42.0, "az_deg": 175.0},
-                {"name": "Venus", "ra_deg": 280.0, "dec_deg": -25.0, "alt_deg": 30.0, "az_deg": 200.0},
-                {"name": "Mars", "ra_deg": 100.0, "dec_deg": 20.0, "alt_deg": 55.0, "az_deg": 100.0},
-                {"name": "Jupiter", "ra_deg": 60.0, "dec_deg": 22.0, "alt_deg": 70.0, "az_deg": 80.0},
-                {"name": "Saturn", "ra_deg": 340.0, "dec_deg": -10.0, "alt_deg": 25.0, "az_deg": 250.0}
+                {"name": "Sun", "ra_deg": 250.5, "dec_deg": -23.2, "alt_deg": 45.0, "az_deg": 180.0, "distance_au": 0.983},
+                {"name": "Moon", "ra_deg": 120.3, "dec_deg": 15.6, "alt_deg": 60.0, "az_deg": 120.0, "distance_au": 0.0025},
+                {"name": "Mercury", "ra_deg": 245.0, "dec_deg": -20.0, "alt_deg": 42.0, "az_deg": 175.0, "distance_au": 1.2},
+                {"name": "Venus", "ra_deg": 280.0, "dec_deg": -25.0, "alt_deg": 30.0, "az_deg": 200.0, "distance_au": 0.7},
+                {"name": "Mars", "ra_deg": 100.0, "dec_deg": 20.0, "alt_deg": 55.0, "az_deg": 100.0, "distance_au": 1.5},
+                {"name": "Jupiter", "ra_deg": 60.0, "dec_deg": 22.0, "alt_deg": 70.0, "az_deg": 80.0, "distance_au": 5.2},
+                {"name": "Saturn", "ra_deg": 340.0, "dec_deg": -10.0, "alt_deg": 25.0, "az_deg": 250.0, "distance_au": 9.5}
             ],
-            "stars": [],
-            "constellations": []
+            "note": format!("天象数据 - {} @ ({:.2}, {:.2})", params.datetime, lat, lon),
+            "jd": 2460649.0,
+            "lst_deg": 45.6,
+            "gmst_deg": 123.456,
+            "delta_t_sec": 69.184
         },
         "fortune": {
-            "datetime": params.datetime,
-            "ganzhi": {
-                "year": "乙巳",
-                "month": "丁亥",
-                "day": "甲子",
-                "hour": "甲子"
+            "yuan": "第1元",
+            "hui": "第1会 · 元会",
+            "yun": "第6运 · 己运",
+            "shi": "第2世 · 丑世",
+            "xun": "第2旬 · 甲戌旬",
+            "nian_ganzhi": "乙巳年",
+            "hexagram_major": "乾",
+            "hexagram_code": [1, 1, 1, 1, 1, 1],
+            "flying_star": "九紫",
+            "note": format!("{}年运势分析：当前处于己运丑世，天时向好，宜积极进取。", year),
+            "lunar": {
+                "lunar_year": "乙巳年",
+                "lunar_month": "十一月",
+                "lunar_day": "初三",
+                "ganzhi_year": "乙巳",
+                "ganzhi_month": "丁亥",
+                "ganzhi_day": "甲子",
+                "ganzhi_hour": "甲子",
+                "zodiac": "蛇",
+                "solar_term": "大雪",
+                "twelve_officer": "建",
+                "aus_directions": "东南",
+                "yi": ["祭祀", "祈福", "出行"],
+                "ji": ["动土", "安葬"]
             },
+            "period_info": {
+                "yuan": {"name": "元", "start_year": -67017, "end_year": 62983, "index": 1, "max_index": 1},
+                "hui": {"name": "元会", "start_year": 1744, "end_year": 12543, "index": 1, "max_index": 12},
+                "yun": {"name": "己运", "start_year": 1864, "end_year": 2223, "index": 6, "max_index": 12},
+                "shi": {"name": "丑世", "start_year": 2014, "end_year": 2043, "index": 2, "max_index": 12},
+                "xun": {"name": "甲戌旬", "start_year": 2024, "end_year": 2033, "index": 2, "max_index": 3},
+                "year_gua": "乾"
+            },
+            "next_yun_start_year": 2224,
+            "next_shi_start_year": 2044,
+            "next_xun_start_year": 2034,
             "mapping_record": {
-                "yuan_index": 1,
-                "hui_index": 1,
-                "yun_index": 6,
-                "shi_index": 2,
-                "nian_index": year - 2014 + 1,
+                "gregorian_year": year,
+                "ganzhi": "乙巳",
                 "nian_hexagram": "乾",
-                "yue_hexagram": "坤",
-                "ri_hexagram": "屯"
-            },
-            "huangji_info": {
-                "hui": {
-                    "index": 1,
-                    "name": "元会",
-                    "start_year": 1744,
-                    "end_year": 12543
-                },
-                "yun": {
-                    "index": 6,
-                    "name": "己运",
-                    "start_year": 1864,
-                    "end_year": 2223
-                },
-                "shi": {
-                    "index": 2,
-                    "name": "丑世",
-                    "start_year": 2014,
-                    "end_year": 2043
-                },
-                "xun": {
-                    "index": 2,
-                    "name": "甲戌旬",
-                    "start_year": 2024,
-                    "end_year": 2033
-                }
+                "dynasty": "当代",
+                "person": "",
+                "yuan_raw": "1",
+                "hui_raw": "1",
+                "yun_raw": "6",
+                "shi_raw": "2",
+                "xun_raw": "2"
             }
         }
     }))
