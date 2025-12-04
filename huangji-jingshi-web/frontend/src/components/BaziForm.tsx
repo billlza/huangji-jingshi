@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { Calendar, MapPin, User, Link2, Link2Off, Globe, LocateFixed, Loader2 } from 'lucide-react';
+import { reverseGeocode, getIPLocation } from '../utils/geolocation';
 
 interface BaziFormProps {
   // 从上层传入的观测时间参数
@@ -64,45 +65,6 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
     }
   }, []);
 
-  // 逆地理编码：经纬度转地名
-  const reverseGeocode = async (latitude: number, longitude: number): Promise<string> => {
-    // 方法1: 尝试使用后端代理（通过自己的服务器中转，避免CORS和墙的问题）
-    try {
-      const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
-      if (API_BASE) {
-        const res = await fetch(
-          `${API_BASE}/api/geocode/reverse?lat=${latitude}&lon=${longitude}`,
-          { signal: AbortSignal.timeout(5000) }
-        );
-        
-        if (res.ok) {
-          const data = await res.json();
-          if (data.location) return data.location;
-        }
-      }
-    } catch (error) {
-      console.log('后端逆地理编码失败，尝试备用方案', error);
-    }
-    
-    // 方法2: 使用 BigDataCloud 免费API（不需要密钥，大陆可访问）
-    try {
-      const res = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=zh`,
-        { signal: AbortSignal.timeout(5000) }
-      );
-      
-      if (res.ok) {
-        const data = await res.json();
-        // 优先显示：城市 > 县 > 省
-        return data.city || data.locality || data.principalSubdivision || data.countryName || '未知地点';
-      }
-    } catch (error) {
-      console.log('BigDataCloud 逆地理编码失败', error);
-    }
-    
-    return '';
-  };
-
   // 获取定位
   const handleLocate = async () => {
     setLocating(true);
@@ -127,38 +89,31 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
         longitude = Number(position.coords.longitude.toFixed(4));
         source = 'GPS';
         
-        console.log('GPS定位成功:', latitude, longitude);
+        console.log('✅ GPS定位成功:', latitude, longitude);
       } catch (gpsError) {
-        console.log('GPS定位失败，尝试IP定位...', gpsError);
+        console.log('❌ GPS定位失败，尝试IP定位...', gpsError);
       }
     }
     
-    // 方法2: 如果GPS失败，尝试 IP 定位
+    // 方法2: 如果GPS失败，尝试 IP 定位（智能路由）
     if (latitude === null || longitude === null) {
       try {
-        // 使用后端API进行IP定位（避免直接调用国外服务）
-        const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
-        const res = await fetch(`${API_BASE}/api/geoip`, { 
-          signal: AbortSignal.timeout(5000) 
-        });
+        const location = await getIPLocation();
         
-        if (res.ok) {
-          const data = await res.json();
-          if (data.latitude && data.longitude) {
-            latitude = Number(Number(data.latitude).toFixed(4));
-            longitude = Number(Number(data.longitude).toFixed(4));
-            source = 'IP';
-            
-            // IP定位直接返回城市名
-            setLat(latitude);
-            setLon(longitude);
-            setLocationName(data.city || data.region || '未知地点');
-            setLocating(false);
-            return;
-          }
+        if (location) {
+          latitude = Number(location.latitude.toFixed(4));
+          longitude = Number(location.longitude.toFixed(4));
+          source = 'IP';
+          
+          // IP定位直接返回城市名
+          setLat(latitude);
+          setLon(longitude);
+          setLocationName(location.city || location.region || '未知地点');
+          setLocating(false);
+          return;
         }
       } catch (ipError) {
-        console.log('IP定位失败', ipError);
+        console.log('❌ IP定位失败', ipError);
       }
     }
     
@@ -167,7 +122,7 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
       setLat(latitude);
       setLon(longitude);
       
-      // 进行逆地理编码获取地名
+      // 进行逆地理编码获取地名（智能路由）
       const locationName = await reverseGeocode(latitude, longitude);
       if (locationName) {
         setLocationName(locationName);
