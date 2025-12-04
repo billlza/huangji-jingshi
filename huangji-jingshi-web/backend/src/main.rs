@@ -87,6 +87,10 @@ async fn main() {
         // 八字排盘 API
         .route("/api/bazi", get(get_bazi))
         
+        // 地理位置服务（代理，解决大陆访问问题）
+        .route("/api/geocode/reverse", get(reverse_geocode))
+        .route("/api/geoip", get(get_geoip))
+        
         // 静态文件服务
         .route("/static/:file", get(static_handler))
         
@@ -283,6 +287,12 @@ struct BaziQuery {
     #[allow(dead_code)]
     lon: Option<f64>,          // 保留用于地方时校正
     gender: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct GeocodeQuery {
+    lat: f64,
+    lon: f64,
 }
 
 // 核心 API - 获取天象和运势数据
@@ -658,5 +668,136 @@ async fn get_bazi(Query(params): Query<BaziQuery>) -> impl IntoResponse {
         "gender": gender,
         "zodiac": SHENGXIAO[year_zhi_idx as usize % 12],
         "solar_term": null
+    }))
+}
+
+// ==================== 地理位置服务 ====================
+
+// 逆地理编码：经纬度转地名
+async fn reverse_geocode(Query(params): Query<GeocodeQuery>) -> impl IntoResponse {
+    tracing::debug!("🗺️ 逆地理编码请求: lat={}, lon={}", params.lat, params.lon);
+    
+    // 尝试多个服务，提高成功率
+    
+    // 方法1: BigDataCloud (免费，无需密钥，大陆可访问)
+    if let Ok(client) = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+    {
+        let url = format!(
+            "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude={}&longitude={}&localityLanguage=zh",
+            params.lat, params.lon
+        );
+        
+        if let Ok(res) = client.get(&url).send().await {
+            if let Ok(data) = res.json::<serde_json::Value>().await {
+                let location = data["city"].as_str()
+                    .or(data["locality"].as_str())
+                    .or(data["principalSubdivision"].as_str())
+                    .or(data["countryName"].as_str())
+                    .unwrap_or("未知地点");
+                
+                return Json(json!({
+                    "location": location,
+                    "source": "BigDataCloud"
+                }));
+            }
+        }
+    }
+    
+    // 方法2: OpenStreetMap Nominatim (备用)
+    if let Ok(client) = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .user_agent("HuangjiJingshiWeb/1.0")
+        .build()
+    {
+        let url = format!(
+            "https://nominatim.openstreetmap.org/reverse?lat={}&lon={}&format=json&accept-language=zh-CN",
+            params.lat, params.lon
+        );
+        
+        if let Ok(res) = client.get(&url).send().await {
+            if let Ok(data) = res.json::<serde_json::Value>().await {
+                if let Some(address) = data.get("address") {
+                    let location = address["city"].as_str()
+                        .or(address["town"].as_str())
+                        .or(address["county"].as_str())
+                        .or(address["state"].as_str())
+                        .unwrap_or("未知地点");
+                    
+                    return Json(json!({
+                        "location": location,
+                        "source": "OpenStreetMap"
+                    }));
+                }
+            }
+        }
+    }
+    
+    // 都失败了
+    Json(json!({
+        "location": "未知地点",
+        "source": "fallback"
+    }))
+}
+
+// IP 地理定位
+async fn get_geoip() -> impl IntoResponse {
+    tracing::debug!("🌐 IP定位请求");
+    
+    // 尝试多个IP定位服务
+    
+    // 方法1: ip-api.com (免费，大陆可访问)
+    if let Ok(client) = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+    {
+        let url = "http://ip-api.com/json/?lang=zh-CN";
+        
+        if let Ok(res) = client.get(url).send().await {
+            if let Ok(data) = res.json::<serde_json::Value>().await {
+                if data["status"].as_str() == Some("success") {
+                    return Json(json!({
+                        "latitude": data["lat"].as_f64().unwrap_or(39.9),
+                        "longitude": data["lon"].as_f64().unwrap_or(116.4),
+                        "city": data["city"].as_str().unwrap_or("北京"),
+                        "region": data["regionName"].as_str().unwrap_or("北京市"),
+                        "country": data["country"].as_str().unwrap_or("中国"),
+                        "source": "ip-api.com"
+                    }));
+                }
+            }
+        }
+    }
+    
+    // 方法2: ipapi.co (备用)
+    if let Ok(client) = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+    {
+        let url = "https://ipapi.co/json/";
+        
+        if let Ok(res) = client.get(url).send().await {
+            if let Ok(data) = res.json::<serde_json::Value>().await {
+                return Json(json!({
+                    "latitude": data["latitude"].as_f64().unwrap_or(39.9),
+                    "longitude": data["longitude"].as_f64().unwrap_or(116.4),
+                    "city": data["city"].as_str().unwrap_or("北京"),
+                    "region": data["region"].as_str().unwrap_or("北京市"),
+                    "country": data["country_name"].as_str().unwrap_or("中国"),
+                    "source": "ipapi.co"
+                }));
+            }
+        }
+    }
+    
+    // 都失败了，返回默认北京坐标
+    Json(json!({
+        "latitude": 39.9042,
+        "longitude": 116.4074,
+        "city": "北京",
+        "region": "北京市",
+        "country": "中国",
+        "source": "fallback"
     }))
 }

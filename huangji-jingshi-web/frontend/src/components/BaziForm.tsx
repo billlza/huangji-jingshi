@@ -66,28 +66,40 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
 
   // 逆地理编码：经纬度转地名
   const reverseGeocode = async (latitude: number, longitude: number): Promise<string> => {
+    // 方法1: 尝试使用后端代理（通过自己的服务器中转，避免CORS和墙的问题）
     try {
-      // 使用 OpenStreetMap Nominatim 逆地理编码
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=zh-CN`,
-        {
-          signal: AbortSignal.timeout(5000),
-          headers: {
-            'User-Agent': 'HuangjiJingshiWeb/1.0'
-          }
+      const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
+      if (API_BASE) {
+        const res = await fetch(
+          `${API_BASE}/api/geocode/reverse?lat=${latitude}&lon=${longitude}`,
+          { signal: AbortSignal.timeout(5000) }
+        );
+        
+        if (res.ok) {
+          const data = await res.json();
+          if (data.location) return data.location;
         }
+      }
+    } catch (error) {
+      console.log('后端逆地理编码失败，尝试备用方案', error);
+    }
+    
+    // 方法2: 使用 BigDataCloud 免费API（不需要密钥，大陆可访问）
+    try {
+      const res = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=zh`,
+        { signal: AbortSignal.timeout(5000) }
       );
       
       if (res.ok) {
         const data = await res.json();
-        const address = data.address;
-        
         // 优先显示：城市 > 县 > 省
-        return address.city || address.town || address.county || address.state || data.display_name.split(',')[0] || '未知地点';
+        return data.city || data.locality || data.principalSubdivision || data.countryName || '未知地点';
       }
     } catch (error) {
-      console.log('逆地理编码失败', error);
+      console.log('BigDataCloud 逆地理编码失败', error);
     }
+    
     return '';
   };
 
@@ -124,9 +136,12 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
     // 方法2: 如果GPS失败，尝试 IP 定位
     if (latitude === null || longitude === null) {
       try {
-        const res = await fetch('https://ipapi.co/json/', { 
+        // 使用后端API进行IP定位（避免直接调用国外服务）
+        const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
+        const res = await fetch(`${API_BASE}/api/geoip`, { 
           signal: AbortSignal.timeout(5000) 
         });
+        
         if (res.ok) {
           const data = await res.json();
           if (data.latitude && data.longitude) {
