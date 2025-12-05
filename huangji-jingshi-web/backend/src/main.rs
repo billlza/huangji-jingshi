@@ -1,6 +1,7 @@
 use axum::{
     routing::{get, post},
     Json, Router, extract::{Path, Query},
+    http::StatusCode,
 };
 use axum::response::IntoResponse;
 use chrono::{Utc, Datelike, Timelike};
@@ -736,17 +737,26 @@ fn calculate_liunian(birth_year: i32, current_year: i32, num_years: i32) -> Vec<
 }
 
 // 八字排盘 API
-async fn get_bazi(Query(params): Query<BaziQuery>) -> impl IntoResponse {
+async fn get_bazi(Query(params): Query<BaziQuery>) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     tracing::info!("🔮 八字排盘请求: datetime={}, gender={:?}", params.datetime, params.gender);
     
-    // 解析日期时间
+    // 解析日期时间 - 不再回退到当前时间，解析失败则返回错误
     let datetime = chrono::DateTime::parse_from_rfc3339(&params.datetime)
         .map(|dt| dt.naive_utc())
-        .unwrap_or_else(|_| {
+        .or_else(|_| {
             // 尝试其他格式
             chrono::NaiveDateTime::parse_from_str(&params.datetime, "%Y-%m-%dT%H:%M:%S")
-                .unwrap_or_else(|_| chrono::Utc::now().naive_utc())
-        });
+        })
+        .map_err(|_| {
+            tracing::warn!("❌ 无法解析日期时间: {}", params.datetime);
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "error": "无法解析日期时间格式",
+                    "message": format!("提供的日期时间 '{}' 格式无效，请使用 ISO 8601 格式（如：2025-01-01T12:00:00Z）", params.datetime)
+                }))
+            )
+        })?;
     
     let year = datetime.year();
     let month = datetime.month() as i32;
@@ -865,7 +875,7 @@ async fn get_bazi(Query(params): Query<BaziQuery>) -> impl IntoResponse {
     // 日主十神分析
     let day_gan_str = TIANGAN[day_gan_idx as usize % 10];
     
-    Json(json!({
+    Ok(Json(json!({
         "year_pillar": year_pillar,
         "month_pillar": month_pillar,
         "day_pillar": day_pillar,
@@ -890,7 +900,7 @@ async fn get_bazi(Query(params): Query<BaziQuery>) -> impl IntoResponse {
         "birth_year": year,
         "zodiac": SHENGXIAO[year_zhi_idx as usize % 12],
         "solar_term": null
-    }))
+    })))
 }
 
 // ==================== 地理位置服务 ====================

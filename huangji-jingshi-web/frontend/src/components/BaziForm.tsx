@@ -56,15 +56,8 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
   const [locateError, setLocateError] = useState<string | null>(null);
   const [geocoding, setGeocoding] = useState(false);
 
-  // 自动识别时区
-  useEffect(() => {
-    try {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      if (tz) setTimezone(tz);
-    } catch {
-      // 保持默认
-    }
-  }, []);
+  // 注：不再自动检测设备时区，默认使用 Asia/Shanghai
+  // 用户可通过下拉菜单手动选择其他时区
 
   // 获取定位
   const handleLocate = async () => {
@@ -159,19 +152,37 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
   };
 
   // 将本地时间字符串根据指定时区转换为UTC ISO字符串
-  // 关键：datetime-local 输入框返回的是"本地时间"，但我们需要将其解释为"指定时区的时间"
+  // 
+  // 使用说明（重要！）：
+  // 
+  // 你是北京时间 02:48 出生的，应该这样填写：
+  // 1. 时区选择：选择"北京时间 (UTC+8)"
+  // 2. 时间输入：在输入框中输入 "02:48"
+  // 
+  // 系统会自动将你输入的"02:48"理解为"北京时间 02:48"，
+  // 然后转换为UTC时间进行计算。
+  // 
+  // 注意：
+  // - 输入框会根据你的设备时区显示时间
+  // - 如果你在北京，输入框显示的就是北京时间，直接输入"02:48"即可
+  // - 如果你在其他时区，输入框显示的是当地时区时间，你需要换算后输入
+  //   例如：你在美国（UTC-5），想输入北京时间02:48，需要输入美国时间13:48（前一天）
+  // - 但更简单的方法是：直接输入"02:48"，系统会根据你选择的"北京时间"正确理解
+  //
+  // 实际上，系统会将你输入的时间理解为"选择的时区的时间"，
+  // 所以无论你在哪里，选择"北京时间"并输入"02:48"，结果都是一致的。
   const convertLocalToUTC = (localDateTime: string, targetTimezone: string): string => {
     if (!localDateTime) {
       return new Date().toISOString();
     }
     
     try {
-      // localDateTime 格式: "2025-12-05T14:30" (没有时区信息)
+      // localDateTime 格式: "2025-12-05T02:48" (没有时区信息)
       const [datePart, timePart] = localDateTime.split('T');
       const [year, month, day] = datePart.split('-').map(Number);
       const [hour, minute] = (timePart || '00:00').split(':').map(Number);
       
-      // 使用已知时区偏移表（不考虑DST的简化版本，但足够准确）
+      // 获取目标时区的UTC偏移（小时）
       const timezoneOffsets: Record<string, number> = {
         'Asia/Shanghai': 8,      // UTC+8
         'Asia/Tokyo': 9,         // UTC+9
@@ -184,15 +195,15 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
         'Europe/Paris': 1,       // UTC+1 (CET)
       };
       
-      const offsetHours = timezoneOffsets[targetTimezone] ?? 0;
+      const targetOffsetHours = timezoneOffsets[targetTimezone] ?? 0;
       
-      // 构造UTC时间：用户在目标时区输入了 year-month-day hour:minute
-      // 对应的UTC时间 = 该时间 - offsetHours
+      // 核心逻辑：用户输入的时间被理解为"目标时区的时间"
+      // 直接转换为UTC：UTC = 目标时区时间 - 目标时区偏移
       const utcDate = new Date(Date.UTC(
         year,
         month - 1,
         day,
-        hour - offsetHours,
+        hour - targetOffsetHours,  // 直接减去目标时区偏移
         minute,
         0
       ));
