@@ -3,7 +3,8 @@
  * 展示年柱、月柱、日柱（日主高亮）、时柱
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Info, ChevronRight, Sparkles } from 'lucide-react';
 
 export interface BaziResult {
@@ -114,6 +115,55 @@ const extractWuxing = (s: string) => s.replace(/[阴阳]/g, '');
 
 export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
   const [showDetail, setShowDetail] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const hideTimerRef = useRef<number | null>(null);
+
+  // 确保客户端渲染
+  useEffect(() => {
+    setMounted(true);
+    return () => {
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+      }
+    };
+  }, []);
+
+  // ESC键关闭模态框
+  useEffect(() => {
+    if (!showDetail) return;
+    
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscape);
+    // 防止背景滚动
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = '';
+    };
+  }, [showDetail]);
+
+  // 安全的关闭函数，带防抖
+  const handleClose = () => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+    }
+    setShowDetail(false);
+  };
+
+  // 安全的打开函数
+  const handleOpen = () => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+    setShowDetail(true);
+  };
 
   if (isLoading) {
     return (
@@ -277,28 +327,49 @@ export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
 
       {/* 详细分析按钮 */}
       <button
-        onClick={() => setShowDetail(true)}
+        onClick={handleOpen}
         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:border-white/20 transition-all group"
+        type="button"
       >
         <Info className="w-4 h-4" />
         <span className="text-sm">详细分析</span>
         <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
       </button>
 
-      {/* 详细分析 Modal */}
-      {showDetail && (
+      {/* 详细分析 Modal - 使用 Portal 渲染到 body，避免影响触发区域 */}
+      {mounted && showDetail && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          onClick={() => setShowDetail(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ 
             animation: 'fadeIn 0.2s ease-out',
             willChange: 'opacity'
           }}
+          onClick={handleClose}
+          onMouseDown={(e) => {
+            // 防止背景点击立即关闭，给内容区域一个缓冲
+            if (e.target === e.currentTarget) {
+              handleClose();
+            }
+          }}
         >
+          {/* 背景遮罩 */}
           <div 
-            className="w-full max-w-2xl max-h-[80vh] overflow-y-auto bg-[#0a0a12] border border-white/10 rounded-3xl p-6 shadow-2xl"
-            onClick={e => e.stopPropagation()}
-            onMouseDown={e => e.stopPropagation()}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            aria-hidden="true"
+          />
+          
+          {/* 内容区域 */}
+          <div 
+            className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto bg-[#0a0a12] border border-white/10 rounded-3xl p-6 shadow-2xl z-10"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseEnter={() => {
+              // 鼠标进入内容区域时，清除任何待关闭的定时器
+              if (hideTimerRef.current) {
+                clearTimeout(hideTimerRef.current);
+                hideTimerRef.current = null;
+              }
+            }}
             style={{
               animation: 'slideUp 0.2s ease-out',
               willChange: 'transform, opacity'
@@ -307,8 +378,10 @@ export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold text-gold">命盘详细分析</h3>
               <button
-                onClick={() => setShowDetail(false)}
-                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:text-white"
+                onClick={handleClose}
+                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:text-white transition-colors"
+                type="button"
+                aria-label="关闭"
               >
                 ✕
               </button>
@@ -496,7 +569,8 @@ export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
