@@ -89,6 +89,7 @@ async fn main() {
         
         // 地理位置服务（代理，解决大陆访问问题）
         .route("/api/geocode/reverse", get(reverse_geocode))
+        .route("/api/geocode", get(geocode))
         .route("/api/geoip", get(get_geoip))
         
         // 静态文件服务
@@ -293,6 +294,11 @@ struct BaziQuery {
 struct GeocodeQuery {
     lat: f64,
     lon: f64,
+}
+
+#[derive(Deserialize)]
+struct GeocodeForwardQuery {
+    address: String,
 }
 
 // 核心 API - 获取天象和运势数据
@@ -888,6 +894,87 @@ async fn get_bazi(Query(params): Query<BaziQuery>) -> impl IntoResponse {
 }
 
 // ==================== 地理位置服务 ====================
+
+// 地理编码：地址转经纬度
+async fn geocode(Query(params): Query<GeocodeForwardQuery>) -> impl IntoResponse {
+    tracing::debug!("🗺️ 地理编码请求: address={}", params.address);
+    
+    let address = params.address.trim();
+    if address.is_empty() {
+        return Json(json!({
+            "error": "地址不能为空"
+        }));
+    }
+    
+    // 方法1: OpenStreetMap Nominatim (支持中文地址)
+    if let Ok(client) = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .user_agent("HuangjiJingshiWeb/1.0")
+        .build()
+    {
+        let url = format!(
+            "https://nominatim.openstreetmap.org/search?q={}&format=json&limit=1&accept-language=zh-CN",
+            urlencoding::encode(address)
+        );
+        
+        if let Ok(res) = client.get(&url).send().await {
+            if let Ok(data) = res.json::<Vec<serde_json::Value>>().await {
+                if let Some(first) = data.first() {
+                    if let (Some(lat), Some(lon)) = (
+                        first["lat"].as_str().and_then(|s| s.parse::<f64>().ok()),
+                        first["lon"].as_str().and_then(|s| s.parse::<f64>().ok())
+                    ) {
+                        let display_name = first["display_name"].as_str().unwrap_or(address);
+                        return Json(json!({
+                            "latitude": lat,
+                            "longitude": lon,
+                            "address": display_name,
+                            "source": "OpenStreetMap"
+                        }));
+                    }
+                }
+            }
+        }
+    }
+    
+    // 方法2: BigDataCloud (备用，对中国地址支持有限)
+    if let Ok(client) = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+    {
+        let url = format!(
+            "https://api.bigdatacloud.net/data/forward-geocode-client?query={}&localityLanguage=zh",
+            urlencoding::encode(address)
+        );
+        
+        if let Ok(res) = client.get(&url).send().await {
+            if let Ok(data) = res.json::<serde_json::Value>().await {
+                if let Some(results) = data["results"].as_array() {
+                    if let Some(first) = results.first() {
+                        if let (Some(lat), Some(lon)) = (
+                            first["latitude"].as_f64(),
+                            first["longitude"].as_f64()
+                        ) {
+                            let formatted = first["formatted"].as_str().unwrap_or(address);
+                            return Json(json!({
+                                "latitude": lat,
+                                "longitude": lon,
+                                "address": formatted,
+                                "source": "BigDataCloud"
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // 都失败了
+    Json(json!({
+        "error": "无法找到该地址的坐标，请检查地址是否正确或手动输入经纬度",
+        "source": "none"
+    }))
+}
 
 // 逆地理编码：经纬度转地名
 async fn reverse_geocode(Query(params): Query<GeocodeQuery>) -> impl IntoResponse {

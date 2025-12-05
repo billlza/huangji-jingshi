@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { Calendar, MapPin, User, Link2, Link2Off, Globe, LocateFixed, Loader2 } from 'lucide-react';
-import { reverseGeocode, getIPLocation } from '../utils/geolocation';
+import { reverseGeocode, getIPLocation, geocode } from '../utils/geolocation';
 
 interface BaziFormProps {
   // 从上层传入的观测时间参数
@@ -54,6 +54,7 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
   // 定位状态
   const [locating, setLocating] = useState(false);
   const [locateError, setLocateError] = useState<string | null>(null);
+  const [geocoding, setGeocoding] = useState(false);
 
   // 自动识别时区
   useEffect(() => {
@@ -266,18 +267,55 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
         </div>
         
         {/* 地名输入 */}
-        <input
-          type="text"
-          value={followObserve ? '' : locationName}
-          onChange={(e) => setLocationName(e.target.value)}
-          placeholder={followObserve ? '跟随观测地点' : '输入地名（可选）'}
-          disabled={followObserve}
-          className={`w-full px-3 py-2.5 rounded-xl text-sm transition-all
-            ${followObserve 
-              ? 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5' 
-              : 'bg-black/40 text-white border border-white/10 focus:border-cyan-500/50 focus:outline-none'
-            }`}
-        />
+        <div className="relative">
+          <input
+            type="text"
+            value={followObserve ? '' : locationName}
+            onChange={(e) => setLocationName(e.target.value)}
+            onBlur={async () => {
+              // 当输入框失去焦点且地址不为空时，自动进行地理编码
+              if (!followObserve && locationName.trim() && locationName.trim().length > 2) {
+                setGeocoding(true);
+                setLocateError(null);
+                try {
+                  const result = await geocode(locationName.trim());
+                  if (result) {
+                    setLat(result.latitude);
+                    setLon(result.longitude);
+                    setLocationName(result.address); // 使用标准化的地址
+                    console.log('✅ 地理编码成功:', result);
+                  } else {
+                    setLocateError('无法找到该地址，请检查地址是否正确或手动输入经纬度');
+                  }
+                } catch (error) {
+                  console.error('地理编码失败:', error);
+                  setLocateError('地址解析失败，请手动输入经纬度');
+                } finally {
+                  setGeocoding(false);
+                }
+              }
+            }}
+            onKeyDown={(e) => {
+              // 按回车键时也进行地理编码
+              if (e.key === 'Enter' && !followObserve && locationName.trim() && locationName.trim().length > 2) {
+                e.preventDefault();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            placeholder={followObserve ? '跟随观测地点' : '输入地名，如：黑龙江省齐齐哈尔市富拉尔基区'}
+            disabled={followObserve}
+            className={`w-full px-3 py-2.5 rounded-xl text-sm transition-all pr-10
+              ${followObserve 
+                ? 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5' 
+                : 'bg-black/40 text-white border border-white/10 focus:border-cyan-500/50 focus:outline-none'
+              }`}
+          />
+          {geocoding && !followObserve && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+            </div>
+          )}
+        </div>
         
         {/* 经纬度输入 */}
         <div className="grid grid-cols-2 gap-2">

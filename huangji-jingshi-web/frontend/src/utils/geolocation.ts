@@ -161,6 +161,111 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
 }
 
 /**
+ * 地理编码：地址转经纬度
+ */
+export async function geocode(address: string): Promise<{
+  latitude: number;
+  longitude: number;
+  address: string;
+} | null> {
+  const inChina = await detectChinaMainland();
+  const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
+
+  // 策略1: 中国大陆用户 - 优先使用后端中转
+  if (inChina) {
+    console.log('📍 [大陆用户] 使用后端中转进行地理编码');
+    
+    if (API_BASE) {
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/geocode?address=${encodeURIComponent(address)}`,
+          { signal: AbortSignal.timeout(10000) }
+        );
+        
+        if (res.ok) {
+          const data = await res.json();
+          if (data.latitude && data.longitude) {
+            console.log('✅ 后端中转地理编码成功:', data.address);
+            return {
+              latitude: data.latitude,
+              longitude: data.longitude,
+              address: data.address || address
+            };
+          } else if (data.error) {
+            console.log('❌ 后端中转地理编码失败:', data.error);
+            return null;
+          }
+        }
+      } catch (error) {
+        console.log('❌ 后端中转地理编码失败', error);
+      }
+    }
+    
+    return null;
+  }
+
+  // 策略2: 海外用户 - 直接调用国际API
+  console.log('🌐 [海外用户] 直接调用国际地理编码API');
+  
+  // 优先 OpenStreetMap（支持中文地址）
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&accept-language=zh-CN`,
+      {
+        signal: AbortSignal.timeout(8000),
+        headers: { 'User-Agent': 'HuangjiJingshiWeb/1.0' }
+      }
+    );
+    
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const first = data[0];
+        const lat = parseFloat(first.lat);
+        const lon = parseFloat(first.lon);
+        if (!isNaN(lat) && !isNaN(lon)) {
+          console.log('✅ OpenStreetMap 地理编码成功:', first.display_name);
+          return {
+            latitude: lat,
+            longitude: lon,
+            address: first.display_name || address
+          };
+        }
+      }
+    }
+  } catch (error) {
+    console.log('❌ OpenStreetMap 地理编码失败', error);
+  }
+  
+  // 降级: BigDataCloud
+  try {
+    const res = await fetch(
+      `https://api.bigdatacloud.net/data/forward-geocode-client?query=${encodeURIComponent(address)}&localityLanguage=zh`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    
+    if (res.ok) {
+      const data = await res.json();
+      if (data.results && Array.isArray(data.results) && data.results.length > 0) {
+        const first = data.results[0];
+        if (first.latitude && first.longitude) {
+          console.log('✅ BigDataCloud 地理编码成功:', first.formatted);
+          return {
+            latitude: first.latitude,
+            longitude: first.longitude,
+            address: first.formatted || address
+          };
+        }
+      }
+    }
+  } catch (error) {
+    console.log('❌ BigDataCloud 地理编码失败', error);
+  }
+  
+  return null;
+}
+
+/**
  * IP地理定位
  */
 export async function getIPLocation(): Promise<{
