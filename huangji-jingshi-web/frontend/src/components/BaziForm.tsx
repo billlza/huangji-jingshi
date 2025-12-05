@@ -272,18 +272,26 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
             type="text"
             value={followObserve ? '' : locationName}
             onChange={(e) => setLocationName(e.target.value)}
-            onBlur={async () => {
+            onBlur={async (e) => {
               // 当输入框失去焦点且地址不为空时，自动进行地理编码
+              // 检查是否点击的是模态框或其他元素，避免误触发
+              const relatedTarget = (e.nativeEvent as FocusEvent).relatedTarget;
+              if (relatedTarget && (relatedTarget as HTMLElement).closest('[role="dialog"], .modal, [data-modal]')) {
+                return; // 如果焦点转移到模态框，不触发地理编码
+              }
+              
               if (!followObserve && locationName.trim() && locationName.trim().length > 2) {
                 setGeocoding(true);
                 setLocateError(null);
                 try {
                   const result = await geocode(locationName.trim());
                   if (result) {
-                    setLat(result.latitude);
-                    setLon(result.longitude);
+                    // 确保经纬度正确更新
+                    setLat(Number(result.latitude.toFixed(6)));
+                    setLon(Number(result.longitude.toFixed(6)));
                     setLocationName(result.address); // 使用标准化的地址
                     console.log('✅ 地理编码成功:', result);
+                    console.log('✅ 更新经纬度:', result.latitude, result.longitude);
                   } else {
                     setLocateError('无法找到该地址，请检查地址是否正确或手动输入经纬度');
                   }
@@ -302,7 +310,7 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
                 (e.target as HTMLInputElement).blur();
               }
             }}
-            placeholder={followObserve ? '跟随观测地点' : '输入地名，如：黑龙江省齐齐哈尔市富拉尔基区'}
+            placeholder={followObserve ? '跟随观测地点' : '输入地名，如：浙江省杭州市西湖区'}
             disabled={followObserve}
             className={`w-full px-3 py-2.5 rounded-xl text-sm transition-all pr-10
               ${followObserve 

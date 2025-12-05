@@ -287,10 +287,22 @@ export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
 
       {/* 详细分析 Modal */}
       {showDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowDetail(false)}>
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => setShowDetail(false)}
+          style={{ 
+            animation: 'fadeIn 0.2s ease-out',
+            willChange: 'opacity'
+          }}
+        >
           <div 
             className="w-full max-w-2xl max-h-[80vh] overflow-y-auto bg-[#0a0a12] border border-white/10 rounded-3xl p-6 shadow-2xl"
             onClick={e => e.stopPropagation()}
+            onMouseDown={e => e.stopPropagation()}
+            style={{
+              animation: 'slideUp 0.2s ease-out',
+              willChange: 'transform, opacity'
+            }}
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold text-gold">命盘详细分析</h3>
