@@ -50,8 +50,7 @@ function findDataPath() {
 async function loadDataFiles() {
     const dataPath = findDataPath();
     if (!dataPath) {
-        console.log('⚠️ 未找到数据文件，将使用Mock数据');
-        return;
+        throw new Error('未找到数据文件，禁止使用 Mock，服务终止');
     }
     
     console.log('📊 开始加载数据文件...');
@@ -92,22 +91,13 @@ app.get('/health', (req, res) => {
 app.post('/api/calculate', (req, res) => {
     console.log('🔮 收到演算请求:', req.body);
     
-    // 模拟演算过程
-    setTimeout(() => {
-        res.json({
-            result: '天机演算完成',
-            calculation_id: 'calc_' + Date.now(),
-            input: req.body,
-            output: {
-                ganzhi: '甲子',
-                date: '2025-12-03',
-                fortune: '大吉',
-                stars: ['紫微', '天机', '太阳']
-            },
-            timestamp: new Date().toISOString(),
-            status: 'success'
-        });
-    }, 500);
+    return res.status(501).json({
+        error: '演算功能尚未在 Node 版本实现',
+        message: '请调用 Rust 主后端或补充真实实现，禁止返回 Mock 数据',
+        input: req.body,
+        timestamp: new Date().toISOString(),
+        status: 'not_implemented'
+    });
 });
 
 app.get('/api/timeline/:year', (req, res) => {

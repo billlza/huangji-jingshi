@@ -58,12 +58,13 @@ async fn main() {
     let data_path = find_data_path();
     tracing::info!("📁 数据路径: {:?}", data_path);
 
-    // 初始化数据加载
-    if let Some(path) = &data_path {
-        tracing::info!("📂 尝试加载数据文件...");
-        let _ = load_data_files(path).await;
-    } else {
-        tracing::warn!("⚠️ 未找到数据文件，将使用Mock数据");
+    // 初始化数据加载（禁止静默 Mock，缺数据直接失败）
+    let path = data_path.unwrap_or_else(|| {
+        panic!("未找到数据文件，服务终止。请确保 data/celestial 目录存在或配置正确。");
+    });
+    tracing::info!("📂 尝试加载数据文件...");
+    if let Err(err) = load_data_files(&path).await {
+        panic!("加载数据文件失败: {}", err);
     }
 
     // 创建路由
@@ -222,28 +223,20 @@ async fn root_handler() -> impl IntoResponse {
     }))
 }
 
-// 天机演算
+// 天机演算（禁止 Mock，尚未实现则返回 501）
 async fn calculate(Json(payload): Json<serde_json::Value>) -> impl IntoResponse {
     tracing::info!("🔮 收到演算请求: {:?}", payload);
 
-    // 模拟演算过程
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-    let calc_id = format!("calc_{}", Utc::now().timestamp());
-
-    Json(json!({
-        "result": "天机演算完成",
-        "calculation_id": calc_id,
-        "input": payload,
-        "output": {
-            "ganzhi": "甲子",
-            "date": "2025-12-03",
-            "fortune": "大吉",
-            "stars": json!(["紫微", "天机", "太阳"])
-        },
-        "timestamp": Utc::now().to_rfc3339(),
-        "status": "success"
-    }))
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(json!({
+            "error": "演算功能尚未实现",
+            "message": "请使用真实演算实现后再调用此接口",
+            "input": payload,
+            "timestamp": Utc::now().to_rfc3339(),
+            "status": "not_implemented"
+        }))
+    )
 }
 
 #[derive(Deserialize)]
