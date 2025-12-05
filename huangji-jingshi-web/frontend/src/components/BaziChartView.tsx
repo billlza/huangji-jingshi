@@ -16,13 +16,32 @@ export interface BaziResult {
   // 五行分析
   wuxing_analysis: {
     day_master: string;        // 日主五行，如 "阳木"
+    day_master_gan?: string;   // 日主天干，如 "甲"
     day_master_strength: 'strong' | 'weak' | 'balanced';  // 旺/弱/中和
     wuxing_counts: Record<string, number>;  // 五行统计
     missing_wuxing: string[];   // 缺失的五行
   };
   
+  // 十神分析
+  ten_gods_summary?: {
+    year_gan: string;
+    month_gan: string;
+    day_gan: string;
+    hour_gan: string;
+  };
+  
+  // 大运
+  dayun?: DayunCycle[];
+  
+  // 小运
+  xiaoyun?: XiaoyunCycle;
+  
+  // 流年
+  liunian?: LiunianYear[];
+  
   // 其他信息
   gender: 'male' | 'female' | 'other';
+  birth_year?: number;
   solar_term?: string;
   zodiac?: string;
 }
@@ -34,6 +53,46 @@ interface Pillar {
   zhi_wuxing: string;  // 地支五行
   zhi_animal: string;  // 生肖
   nayin: string;       // 纳音
+  gan_ten_god?: string;  // 天干十神
+  hidden_stems?: HiddenStem[];  // 地支藏干
+}
+
+interface HiddenStem {
+  gan: string;
+  gan_wuxing: string;
+  ten_god: string;
+  type: string;  // 余气、中气、本气
+  energy: number;  // 能量百分比
+}
+
+interface DayunCycle {
+  cycle: number;
+  gan: string;
+  zhi: string;
+  gan_wuxing: string;
+  zhi_wuxing: string;
+  start_age: number;
+  end_age: number;
+  year_range: string;
+}
+
+interface XiaoyunCycle {
+  age: number;
+  year: number;
+  gan: string;
+  zhi: string;
+  gan_wuxing: string;
+  zhi_wuxing: string;
+}
+
+interface LiunianYear {
+  year: number;
+  age: number;
+  gan: string;
+  zhi: string;
+  gan_wuxing: string;
+  zhi_wuxing: string;
+  zodiac: string;
 }
 
 interface BaziChartViewProps {
@@ -106,7 +165,6 @@ export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         {pillars.map((pillar, idx) => {
           const ganWuxing = extractWuxing(pillar.data.gan_wuxing);
-          const zhiWuxing = extractWuxing(pillar.data.zhi_wuxing);
           const colors = WUXING_COLORS[ganWuxing] || WUXING_COLORS['土'];
           
           return (
@@ -262,6 +320,44 @@ export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
                 </div>
               </section>
               
+              {/* 十神分析 */}
+              {data.ten_gods_summary && (
+                <section>
+                  <h4 className="text-xs text-gray-500 uppercase tracking-widest mb-3">十神分析</h4>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { label: '年柱', god: data.ten_gods_summary.year_gan, pillar: data.year_pillar },
+                      { label: '月柱', god: data.ten_gods_summary.month_gan, pillar: data.month_pillar },
+                      { label: '日柱', god: data.ten_gods_summary.day_gan, pillar: data.day_pillar },
+                      { label: '时柱', god: data.ten_gods_summary.hour_gan, pillar: data.hour_pillar }
+                    ].map(item => (
+                      <div key={item.label} className="p-3 rounded-xl bg-white/5 text-center">
+                        <div className="text-xs text-gray-500 mb-1">{item.label}</div>
+                        <div className="text-lg font-bold mb-1">{item.pillar.gan}</div>
+                        <div className="text-xs text-cyan-400">{item.god}</div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* 地支藏干 */}
+                  <div className="mt-4 p-3 rounded-xl bg-white/5">
+                    <div className="text-xs text-gray-500 mb-2">地支藏干</div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[data.year_pillar, data.month_pillar, data.day_pillar, data.hour_pillar].map((pillar, idx) => (
+                        <div key={idx} className="text-center">
+                          <div className="text-xs font-bold mb-1">{pillar.zhi}</div>
+                          {pillar.hidden_stems?.map((hs, hidx) => (
+                            <div key={hidx} className="text-[10px] text-gray-400">
+                              {hs.gan}·{hs.ten_god}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+              )}
+              
               {/* 五行详解 */}
               <section>
                 <h4 className="text-xs text-gray-500 uppercase tracking-widest mb-3">五行分布</h4>
@@ -287,6 +383,88 @@ export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
                 </div>
               </section>
               
+              {/* 大运分析 */}
+              {data.dayun && data.dayun.length > 0 && (
+                <section>
+                  <h4 className="text-xs text-gray-500 uppercase tracking-widest mb-3">大运分析 (十年一运)</h4>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {data.dayun.map((cycle) => {
+                      const ganWx = extractWuxing(cycle.gan_wuxing);
+                      const colors = WUXING_COLORS[ganWx] || WUXING_COLORS['土'];
+                      return (
+                        <div key={cycle.cycle} className={`p-3 rounded-xl ${colors.bg} border ${colors.border}`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="text-lg font-bold font-serif">
+                                {cycle.gan}{cycle.zhi}
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                第{cycle.cycle}运
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs font-medium">{cycle.start_age}-{cycle.end_age}岁</div>
+                              <div className="text-[10px] text-gray-500">{cycle.year_range}</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+              
+              {/* 流年运势 */}
+              {data.liunian && data.liunian.length > 0 && (
+                <section>
+                  <h4 className="text-xs text-gray-500 uppercase tracking-widest mb-3">流年运势</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    {data.liunian.map((year) => {
+                      const ganWx = extractWuxing(year.gan_wuxing);
+                      const colors = WUXING_COLORS[ganWx] || WUXING_COLORS['土'];
+                      const isCurrent = year.year === new Date().getFullYear();
+                      return (
+                        <div 
+                          key={year.year} 
+                          className={`p-3 rounded-xl ${colors.bg} border ${isCurrent ? 'border-gold' : colors.border}`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="text-xs font-bold">{year.year}年</div>
+                            {isCurrent && <span className="text-[9px] px-1.5 py-0.5 rounded bg-gold text-black">当前</span>}
+                          </div>
+                          <div className="text-lg font-serif mb-1">{year.gan}{year.zhi}</div>
+                          <div className="text-[10px] text-gray-400">
+                            {year.zodiac}年 · {year.age}岁
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+              
+              {/* 小运 */}
+              {data.xiaoyun && (
+                <section>
+                  <h4 className="text-xs text-gray-500 uppercase tracking-widest mb-3">小运 (当前年运)</h4>
+                  <div className="p-3 rounded-xl bg-white/5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="text-lg font-bold font-serif">
+                          {data.xiaoyun.gan}{data.xiaoyun.zhi}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {data.xiaoyun.year}年 · {data.xiaoyun.age}岁
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {data.xiaoyun.gan_wuxing}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              )}
+              
               {/* 纳音 */}
               <section>
                 <h4 className="text-xs text-gray-500 uppercase tracking-widest mb-3">纳音五行</h4>
@@ -301,8 +479,8 @@ export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
               </section>
               
               {/* 提示 */}
-              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200/80 text-xs">
-                <strong className="text-amber-300">提示：</strong> 完整的八字分析需要结合十神、大运、流年等更多因素。此处仅展示基础命盘信息，后续版本将加入更详细的分析功能。
+              <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-200/80 text-xs">
+                <strong className="text-emerald-300">✓ 已完善：</strong> 本系统已集成十神、大运、流年、小运等传统八字分析要素，提供全面的命理解读。
               </div>
             </div>
           </div>

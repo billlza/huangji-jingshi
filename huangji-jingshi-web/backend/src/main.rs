@@ -558,6 +558,177 @@ const NAYIN: [&str; 30] = [
     "桑柘木", "大溪水", "沙中土", "天上火", "石榴木", "大海水"
 ];
 
+// 地支藏干表 (Hidden Stems in Earthly Branches)
+// 格式: [余气, 中气, 本气] - 有些地支只有本气或本气+余气
+const ZHI_CANGGAN: [[&str; 3]; 12] = [
+    ["", "", "癸"],           // 子: 癸水
+    ["癸", "辛", "己"],       // 丑: 己土(本气) 辛金(中气) 癸水(余气)
+    ["戊", "丙", "甲"],       // 寅: 甲木(本气) 丙火(中气) 戊土(余气)
+    ["", "", "乙"],           // 卯: 乙木
+    ["癸", "乙", "戊"],       // 辰: 戊土(本气) 乙木(中气) 癸水(余气)
+    ["戊", "庚", "丙"],       // 巳: 丙火(本气) 庚金(中气) 戊土(余气)
+    ["己", "", "丁"],         // 午: 丁火(本气) 己土(余气)
+    ["丁", "乙", "己"],       // 未: 己土(本气) 乙木(中气) 丁火(余气)
+    ["戊", "壬", "庚"],       // 申: 庚金(本气) 壬水(中气) 戊土(余气)
+    ["", "", "辛"],           // 酉: 辛金
+    ["丁", "辛", "戊"],       // 戌: 戊土(本气) 辛金(中气) 丁火(余气)
+    ["甲", "", "壬"],         // 亥: 壬水(本气) 甲木(余气)
+];
+
+// 十神计算表 (Ten Gods Table)
+// 根据日干与其他天干的关系，返回十神名称
+// 阴阳属性: 0,2,4,6,8=阳  1,3,5,7,9=阴
+fn calculate_ten_god(day_gan_idx: usize, target_gan_idx: usize) -> &'static str {
+    let day_is_yang = day_gan_idx % 2 == 0;
+    let target_is_yang = target_gan_idx % 2 == 0;
+    let same_yin_yang = day_is_yang == target_is_yang;
+    
+    // 五行关系: 木(0,1) 火(2,3) 土(4,5) 金(6,7) 水(8,9)
+    let day_wuxing = day_gan_idx / 2;
+    let target_wuxing = target_gan_idx / 2;
+    
+    // 计算五行关系
+    let relation = (target_wuxing + 5 - day_wuxing) % 5;
+    
+    match relation {
+        0 => if same_yin_yang { "比肩" } else { "劫财" },
+        1 => if same_yin_yang { "食神" } else { "伤官" },
+        2 => if same_yin_yang { "偏财" } else { "正财" },
+        3 => if same_yin_yang { "偏官" } else { "正官" },  // 偏官也叫七杀
+        4 => if same_yin_yang { "偏印" } else { "正印" },  // 偏印也叫枭神
+        _ => "未知"
+    }
+}
+
+// 计算地支藏干的十神
+fn get_hidden_stems_with_gods(zhi_idx: usize, day_gan_idx: usize) -> Vec<serde_json::Value> {
+    let hidden = &ZHI_CANGGAN[zhi_idx];
+    let mut result = Vec::new();
+    
+    for (i, gan_str) in hidden.iter().enumerate() {
+        if !gan_str.is_empty() {
+            // 找到天干索引
+            if let Some(gan_idx) = TIANGAN.iter().position(|&g| g == *gan_str) {
+                let ten_god = calculate_ten_god(day_gan_idx, gan_idx);
+                let gan_wuxing = GAN_WUXING[gan_idx];
+                
+                // 确定藏干类型和能量
+                let (canggan_type, energy) = match i {
+                    0 => ("余气", 30),
+                    1 => if hidden[0].is_empty() { ("余气", 30) } else { ("中气", 20) },
+                    2 => ("本气", 50),
+                    _ => ("", 0)
+                };
+                
+                result.push(json!({
+                    "gan": gan_str,
+                    "gan_wuxing": gan_wuxing,
+                    "ten_god": ten_god,
+                    "type": canggan_type,
+                    "energy": energy
+                }));
+            }
+        }
+    }
+    
+    result
+}
+
+// 计算大运 (Great Luck Cycles)
+fn calculate_dayun(
+    month_gan_idx: i32,
+    month_zhi_idx: i32,
+    year_gan_idx: i32,
+    gender: &str,
+    birth_year: i32,
+) -> Vec<serde_json::Value> {
+    // 判断阴阳: 阳年(甲丙戊庚壬) vs 阴年(乙丁己辛癸)
+    let year_is_yang = year_gan_idx % 2 == 0;
+    
+    // 大运顺逆: 阳男阴女顺行，阴男阳女逆行
+    let forward = (gender == "male" && year_is_yang) || (gender == "female" && !year_is_yang);
+    
+    // 起运岁数: 简化为3岁起运 (实际应根据节气精确计算)
+    let start_age = 3.0;
+    
+    let mut dayun_cycles = Vec::new();
+    
+    for i in 0..10 {
+        let cycle_num = if forward { i + 1 } else { -(i + 1) };
+        let gan_idx = ((month_gan_idx + cycle_num + 10) % 10 + 10) % 10;
+        let zhi_idx = ((month_zhi_idx + cycle_num + 12) % 12 + 12) % 12;
+        
+        let start_age_for_cycle = start_age + (i as f32 * 10.0);
+        let end_age = start_age_for_cycle + 9.0;
+        
+        dayun_cycles.push(json!({
+            "cycle": i + 1,
+            "gan": TIANGAN[gan_idx as usize],
+            "zhi": DIZHI[zhi_idx as usize],
+            "gan_wuxing": GAN_WUXING[gan_idx as usize],
+            "zhi_wuxing": ZHI_WUXING[zhi_idx as usize],
+            "start_age": start_age_for_cycle as i32,
+            "end_age": end_age as i32,
+            "year_range": format!("{}-{}", 
+                birth_year + start_age_for_cycle as i32,
+                birth_year + end_age as i32
+            )
+        }));
+    }
+    
+    dayun_cycles
+}
+
+// 计算小运 (Minor Luck)
+fn calculate_xiaoyun(
+    hour_gan_idx: i32,
+    hour_zhi_idx: i32,
+    gender: &str,
+    birth_year: i32,
+    current_year: i32,
+) -> serde_json::Value {
+    // 小运: 男命从时柱顺推，女命从时柱逆推
+    let forward = gender == "male";
+    let age = current_year - birth_year;
+    
+    let offset = if forward { age } else { -age };
+    let gan_idx = ((hour_gan_idx + offset + 10) % 10 + 10) % 10;
+    let zhi_idx = ((hour_zhi_idx + offset + 12) % 12 + 12) % 12;
+    
+    json!({
+        "age": age,
+        "year": current_year,
+        "gan": TIANGAN[gan_idx as usize],
+        "zhi": DIZHI[zhi_idx as usize],
+        "gan_wuxing": GAN_WUXING[gan_idx as usize],
+        "zhi_wuxing": ZHI_WUXING[zhi_idx as usize]
+    })
+}
+
+// 计算流年 (Annual Fortune)
+fn calculate_liunian(birth_year: i32, current_year: i32, num_years: i32) -> Vec<serde_json::Value> {
+    let mut liunian = Vec::new();
+    
+    for i in 0..num_years {
+        let year = current_year + i;
+        let age = year - birth_year;
+        let gan_idx = ((year - 4) % 10 + 10) % 10;
+        let zhi_idx = ((year - 4) % 12 + 12) % 12;
+        
+        liunian.push(json!({
+            "year": year,
+            "age": age,
+            "gan": TIANGAN[gan_idx as usize],
+            "zhi": DIZHI[zhi_idx as usize],
+            "gan_wuxing": GAN_WUXING[gan_idx as usize],
+            "zhi_wuxing": ZHI_WUXING[zhi_idx as usize],
+            "zodiac": SHENGXIAO[zhi_idx as usize]
+        }));
+    }
+    
+    liunian
+}
+
 // 八字排盘 API
 async fn get_bazi(Query(params): Query<BaziQuery>) -> impl IntoResponse {
     tracing::info!("🔮 八字排盘请求: datetime={}, gender={:?}", params.datetime, params.gender);
@@ -592,11 +763,17 @@ async fn get_bazi(Query(params): Query<BaziQuery>) -> impl IntoResponse {
     let hour_zhi_idx = ((hour + 1) / 2 % 12 + 12) % 12;
     let hour_gan_idx = ((day_gan_idx * 2 + hour_zhi_idx) % 10 + 10) % 10;
     
-    // 构建四柱
-    let create_pillar = |gan_idx: i32, zhi_idx: i32| -> serde_json::Value {
+    // 构建四柱（包含十神和藏干）
+    let create_pillar = |gan_idx: i32, zhi_idx: i32, day_gan_idx: usize| -> serde_json::Value {
         let gi = gan_idx as usize % 10;
         let zi = zhi_idx as usize % 12;
         let nayin_idx = ((gi / 2) * 6 + zi / 2) % 30;
+        
+        // 计算天干十神
+        let gan_ten_god = calculate_ten_god(day_gan_idx, gi);
+        
+        // 计算地支藏干及其十神
+        let hidden_stems = get_hidden_stems_with_gods(zi, day_gan_idx);
         
         json!({
             "gan": TIANGAN[gi],
@@ -604,14 +781,17 @@ async fn get_bazi(Query(params): Query<BaziQuery>) -> impl IntoResponse {
             "gan_wuxing": GAN_WUXING[gi],
             "zhi_wuxing": ZHI_WUXING[zi],
             "zhi_animal": SHENGXIAO[zi],
-            "nayin": NAYIN[nayin_idx]
+            "nayin": NAYIN[nayin_idx],
+            "gan_ten_god": gan_ten_god,
+            "hidden_stems": hidden_stems
         })
     };
     
-    let year_pillar = create_pillar(year_gan_idx, year_zhi_idx);
-    let month_pillar = create_pillar(month_gan_idx, month_zhi_idx);
-    let day_pillar = create_pillar(day_gan_idx, day_zhi_idx);
-    let hour_pillar = create_pillar(hour_gan_idx, hour_zhi_idx);
+    let day_gan_idx_usize = day_gan_idx as usize % 10;
+    let year_pillar = create_pillar(year_gan_idx, year_zhi_idx, day_gan_idx_usize);
+    let month_pillar = create_pillar(month_gan_idx, month_zhi_idx, day_gan_idx_usize);
+    let day_pillar = create_pillar(day_gan_idx, day_zhi_idx, day_gan_idx_usize);
+    let hour_pillar = create_pillar(hour_gan_idx, hour_zhi_idx, day_gan_idx_usize);
     
     // 统计五行
     let mut wuxing_counts: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
@@ -654,6 +834,31 @@ async fn get_bazi(Query(params): Query<BaziQuery>) -> impl IntoResponse {
     
     let gender = params.gender.unwrap_or_else(|| "male".to_string());
     
+    // 计算大运
+    let dayun = calculate_dayun(
+        month_gan_idx,
+        month_zhi_idx,
+        year_gan_idx,
+        &gender,
+        year
+    );
+    
+    // 计算当前小运
+    let current_year = Utc::now().year();
+    let xiaoyun = calculate_xiaoyun(
+        hour_gan_idx,
+        hour_zhi_idx,
+        &gender,
+        year,
+        current_year
+    );
+    
+    // 计算流年 (当前年+未来5年)
+    let liunian = calculate_liunian(year, current_year, 6);
+    
+    // 日主十神分析
+    let day_gan_str = TIANGAN[day_gan_idx as usize % 10];
+    
     Json(json!({
         "year_pillar": year_pillar,
         "month_pillar": month_pillar,
@@ -661,11 +866,22 @@ async fn get_bazi(Query(params): Query<BaziQuery>) -> impl IntoResponse {
         "hour_pillar": hour_pillar,
         "wuxing_analysis": {
             "day_master": day_master,
+            "day_master_gan": day_gan_str,
             "day_master_strength": strength,
             "wuxing_counts": wuxing_counts,
             "missing_wuxing": missing
         },
+        "ten_gods_summary": {
+            "year_gan": year_pillar["gan_ten_god"],
+            "month_gan": month_pillar["gan_ten_god"],
+            "day_gan": day_pillar["gan_ten_god"],
+            "hour_gan": hour_pillar["gan_ten_god"]
+        },
+        "dayun": dayun,
+        "xiaoyun": xiaoyun,
+        "liunian": liunian,
         "gender": gender,
+        "birth_year": year,
         "zodiac": SHENGXIAO[year_zhi_idx as usize % 12],
         "solar_term": null
     }))

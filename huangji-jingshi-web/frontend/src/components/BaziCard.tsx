@@ -169,7 +169,6 @@ function generateMockBazi(params: BaziParams): BaziResult {
 
   const dayMasterWx = dayPillar.gan_wuxing.replace(/[阴阳]/g, '');
   const dayMasterCount = wuxingCounts[dayMasterWx];
-  const totalCount = Object.values(wuxingCounts).reduce((a, b) => a + b, 0);
   
   return {
     year_pillar: yearPillar,
