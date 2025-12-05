@@ -575,6 +575,171 @@ const ZHI_CANGGAN: [[&str; 3]; 12] = [
     ["甲", "", "壬"],         // 亥: 壬水(本气) 甲木(余气)
 ];
 
+// 24节气名称 (从春分0度开始，每15度一个节气)
+const SOLAR_TERMS: [&str; 24] = [
+    "春分", "清明", "谷雨", "立夏", "小满", "芒种",
+    "夏至", "小暑", "大暑", "立秋", "处暑", "白露",
+    "秋分", "寒露", "霜降", "立冬", "小雪", "大雪",
+    "冬至", "小寒", "大寒", "立春", "雨水", "惊蛰"
+];
+
+// 节气对应的黄经度数 (从春分0度开始)
+const SOLAR_TERM_DEGREES: [f64; 24] = [
+    0.0, 15.0, 30.0, 45.0, 60.0, 75.0,
+    90.0, 105.0, 120.0, 135.0, 150.0, 165.0,
+    180.0, 195.0, 210.0, 225.0, 240.0, 255.0,
+    270.0, 285.0, 300.0, 315.0, 330.0, 345.0
+];
+
+// 月支对应的节气起始度数 (以"节"为界)
+// 寅月(正月): 立春315° - 惊蛰345°
+// 卯月(二月): 惊蛰345° - 清明15°
+// 辰月(三月): 清明15° - 立夏45°
+// 以此类推...
+#[allow(dead_code)]
+const MONTH_START_DEGREES: [f64; 12] = [
+    315.0,  // 寅月 (正月) - 立春
+    345.0,  // 卯月 (二月) - 惊蛰
+    15.0,   // 辰月 (三月) - 清明
+    45.0,   // 巳月 (四月) - 立夏
+    75.0,   // 午月 (五月) - 芒种
+    105.0,  // 未月 (六月) - 小暑
+    135.0,  // 申月 (七月) - 立秋
+    165.0,  // 酉月 (八月) - 白露
+    195.0,  // 戌月 (九月) - 寒露
+    225.0,  // 亥月 (十月) - 立冬
+    255.0,  // 子月 (十一月) - 大雪
+    285.0,  // 丑月 (十二月) - 小寒
+];
+
+// 计算儒略日 (Julian Day)
+fn datetime_to_jd(datetime: &chrono::NaiveDateTime) -> f64 {
+    let timestamp = datetime.and_utc().timestamp();
+    (timestamp as f64 / 86400.0) + 2440587.5
+}
+
+// 计算太阳黄经 (Solar Longitude)
+// 使用简化的天文算法，精度约0.01度
+fn get_solar_longitude(jd: f64) -> f64 {
+    // 儒略世纪数 (从J2000.0起算)
+    let t = (jd - 2451545.0) / 36525.0;
+    
+    // 太阳平黄经
+    let l0 = 280.46646 + 36000.76983 * t + 0.0003032 * t * t;
+    
+    // 太阳平近点角
+    let m = 357.52911 + 35999.05029 * t - 0.0001537 * t * t;
+    let m_rad = m.to_radians();
+    
+    // 太阳方程 (中心差)
+    let c = (1.914602 - 0.004817 * t - 0.000014 * t * t) * m_rad.sin()
+          + (0.019993 - 0.000101 * t) * (2.0 * m_rad).sin()
+          + 0.000289 * (3.0 * m_rad).sin();
+    
+    // 太阳真黄经
+    let sun_lon = (l0 + c).rem_euclid(360.0);
+    sun_lon
+}
+
+// 根据太阳黄经获取当前节气索引 (0-23)
+fn get_solar_term_index(solar_longitude: f64) -> usize {
+    let idx = (solar_longitude / 15.0).floor() as usize;
+    idx % 24
+}
+
+// 根据太阳黄经获取月支索引 (0=子, 1=丑, 2=寅, ...)
+// 八字月份以"节"为界，不是以"气"为界
+fn get_month_branch_from_solar_longitude(solar_longitude: f64) -> usize {
+    // 立春(315°)起为寅月(索引2)
+    // 惊蛰(345°)起为卯月(索引3)
+    // 清明(15°)起为辰月(索引4)
+    // ...以此类推
+    
+    // 将黄经转换为月支索引
+    // 315° -> 寅(2), 345° -> 卯(3), 15° -> 辰(4), ...
+    let adjusted = (solar_longitude + 45.0).rem_euclid(360.0);
+    let month_idx = (adjusted / 30.0).floor() as usize;
+    // 月支索引: 0=子, 1=丑, 2=寅, ...
+    (month_idx + 2) % 12
+}
+
+// 判断是否已过立春 (用于年柱换年)
+fn is_after_lichun(solar_longitude: f64) -> bool {
+    // 立春黄经为315度
+    // 如果黄经 >= 315 或 < 270 (排除冬至到小寒期间)，认为已过立春
+    // 实际判断: 黄经在 [315, 360) 或 [0, 315) 的前半部分
+    // 简化: 黄经 >= 315 表示已过立春，< 315 表示未过立春
+    // 但需要考虑黄经是循环的，0度是春分
+    // 更准确: 立春后到下一个立春前
+    // 315 <= λ < 360 或 0 <= λ < 315 均为立春后
+    // 实际上只有 270 <= λ < 315 是立春前 (冬至后到立春前)
+    solar_longitude >= 315.0 || solar_longitude < 270.0
+}
+
+// 计算到下一个节气的天数
+fn days_to_next_jieqi(jd: f64, forward: bool) -> f64 {
+    let current_lon = get_solar_longitude(jd);
+    
+    // 找到下一个节气的目标黄经度数
+    // 节气是每15度一个，"节"是奇数节气 (立春315, 惊蛰345, 清明15, ...)
+    let current_term_idx = get_solar_term_index(current_lon);
+    
+    // 找到下一个"节"(非"气")
+    // 节: 立春(21), 惊蛰(23), 清明(1), 立夏(3), 芒种(5), 小暑(7), 立秋(9), 白露(11), 寒露(13), 立冬(15), 大雪(17), 小寒(19)
+    // 气: 雨水(22), 春分(0), 谷雨(2), 小满(4), ...
+    let jie_indices = [21, 23, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19]; // 12个节
+    
+    let target_lon = if forward {
+        // 找下一个节
+        let mut next_jie_lon = 360.0;
+        for &jie_idx in &jie_indices {
+            let jie_lon = SOLAR_TERM_DEGREES[jie_idx];
+            let diff = if jie_lon > current_lon {
+                jie_lon - current_lon
+            } else {
+                jie_lon + 360.0 - current_lon
+            };
+            if diff < next_jie_lon - current_lon && diff > 0.0 {
+                next_jie_lon = if jie_lon > current_lon { jie_lon } else { jie_lon + 360.0 };
+            }
+        }
+        // 简化计算：下一个节大约在当前位置后的某个15度整数倍
+        let next_idx = ((current_term_idx / 2) * 2 + 2) % 24;
+        if next_idx == 0 { 360.0 } else { SOLAR_TERM_DEGREES[next_idx] }
+    } else {
+        // 找上一个节
+        let prev_idx = if current_term_idx < 2 { 22 } else { (current_term_idx / 2) * 2 };
+        SOLAR_TERM_DEGREES[prev_idx]
+    };
+    
+    // 计算黄经差
+    let lon_diff = if forward {
+        if target_lon > current_lon { target_lon - current_lon } else { target_lon + 360.0 - current_lon }
+    } else {
+        if current_lon > target_lon { current_lon - target_lon } else { current_lon + 360.0 - target_lon }
+    };
+    
+    // 太阳每天移动约0.9856度
+    lon_diff / 0.9856
+}
+
+// 计算起运年龄 (根据出生日期到节气的天数)
+fn calculate_start_age(jd: f64, gender: &str, year_gan_idx: i32) -> f64 {
+    let year_is_yang = year_gan_idx % 2 == 0;
+    
+    // 阳年男命/阴年女命：顺数到下一个节气
+    // 阴年男命/阳年女命：逆数到上一个节气
+    let forward = (gender == "male" && year_is_yang) || (gender == "female" && !year_is_yang);
+    
+    let days = days_to_next_jieqi(jd, forward);
+    
+    // 每3天折算1岁，余数换算月份
+    let years = days / 3.0;
+    
+    // 最小起运年龄为1岁
+    if years < 1.0 { 1.0 } else { years }
+}
+
 // 十神计算表 (Ten Gods Table)
 // 根据日干与其他天干的关系，返回十神名称
 // 阴阳属性: 0,2,4,6,8=阳  1,3,5,7,9=阴
@@ -641,15 +806,13 @@ fn calculate_dayun(
     year_gan_idx: i32,
     gender: &str,
     birth_year: i32,
+    start_age: f64,  // 起运年龄 (由 calculate_start_age 计算)
 ) -> Vec<serde_json::Value> {
     // 判断阴阳: 阳年(甲丙戊庚壬) vs 阴年(乙丁己辛癸)
     let year_is_yang = year_gan_idx % 2 == 0;
     
     // 大运顺逆: 阳男阴女顺行，阴男阳女逆行
     let forward = (gender == "male" && year_is_yang) || (gender == "female" && !year_is_yang);
-    
-    // 起运岁数: 简化为3岁起运 (实际应根据节气精确计算)
-    let start_age = 3.0;
     
     let mut dayun_cycles = Vec::new();
     
@@ -658,7 +821,7 @@ fn calculate_dayun(
         let gan_idx = ((month_gan_idx + cycle_num + 10) % 10 + 10) % 10;
         let zhi_idx = ((month_zhi_idx + cycle_num + 12) % 12 + 12) % 12;
         
-        let start_age_for_cycle = start_age + (i as f32 * 10.0);
+        let start_age_for_cycle = start_age + (i as f64 * 10.0);
         let end_age = start_age_for_cycle + 9.0;
         
         dayun_cycles.push(json!({
@@ -667,11 +830,11 @@ fn calculate_dayun(
             "zhi": DIZHI[zhi_idx as usize],
             "gan_wuxing": GAN_WUXING[gan_idx as usize],
             "zhi_wuxing": ZHI_WUXING[zhi_idx as usize],
-            "start_age": start_age_for_cycle as i32,
-            "end_age": end_age as i32,
+            "start_age": start_age_for_cycle.round() as i32,
+            "end_age": end_age.round() as i32,
             "year_range": format!("{}-{}", 
-                birth_year + start_age_for_cycle as i32,
-                birth_year + end_age as i32
+                birth_year + start_age_for_cycle.round() as i32,
+                birth_year + end_age.round() as i32
             )
         }));
     }
@@ -752,25 +915,62 @@ async fn get_bazi(Query(params): Query<BaziQuery>) -> Result<Json<serde_json::Va
         })?;
     
     let year = datetime.year();
-    let month = datetime.month() as i32;
     let hour = datetime.hour() as i32;
     
-    // 计算年柱
-    let year_gan_idx = ((year - 4) % 10 + 10) % 10;
-    let year_zhi_idx = ((year - 4) % 12 + 12) % 12;
+    // 计算儒略日和太阳黄经
+    let jd = datetime_to_jd(&datetime);
+    let solar_longitude = get_solar_longitude(jd);
     
-    // 计算月柱（简化算法，实际应根据节气精确计算）
-    let month_gan_idx = ((year_gan_idx * 2 + month) % 10 + 10) % 10;
-    let month_zhi_idx = ((month + 1) % 12 + 12) % 12;
+    // ==================== 年柱计算 (立春换年) ====================
+    // 判断是否已过立春，决定使用哪一年的干支
+    let bazi_year = if is_after_lichun(solar_longitude) {
+        year
+    } else {
+        year - 1
+    };
+    let year_gan_idx = ((bazi_year - 4) % 10 + 10) % 10;
+    let year_zhi_idx = ((bazi_year - 4) % 12 + 12) % 12;
     
-    // 计算日柱（简化算法）
-    let days_from_epoch = (datetime.and_utc().timestamp() / 86400) as i32;
-    let day_gan_idx = ((days_from_epoch + 9) % 10 + 10) % 10;  // 1970-01-01 是庚戌日
-    let day_zhi_idx = ((days_from_epoch + 10) % 12 + 12) % 12; // 戌是第11位(index 10)
+    // ==================== 月柱计算 (节气换月 + 五虎遁) ====================
+    // 根据太阳黄经确定月支
+    let month_zhi_idx = get_month_branch_from_solar_longitude(solar_longitude) as i32;
     
-    // 计算时柱
-    let hour_zhi_idx = ((hour + 1) / 2 % 12 + 12) % 12;
-    let hour_gan_idx = ((day_gan_idx * 2 + hour_zhi_idx) % 10 + 10) % 10;
+    // 五虎遁计算月干
+    // 口诀: 甲己之年丙作首，乙庚之岁戊为头，丙辛必定寻庚起，丁壬壬位顺行流，若问戊癸何方发，甲寅之上好追求
+    // 公式: 正月(寅月)天干 = (年干 % 5) * 2 + 2，然后按月支顺推
+    let yin_month_gan_idx = ((year_gan_idx % 5) * 2 + 2) % 10;  // 正月(寅月)的天干索引
+    // 月支从寅(2)开始，计算当前月支与寅月的偏移
+    let month_offset = ((month_zhi_idx - 2 + 12) % 12) as i32;
+    let month_gan_idx = ((yin_month_gan_idx as i32 + month_offset) % 10 + 10) % 10;
+    
+    // ==================== 日柱计算 (修正偏移 + 子时换日) ====================
+    // 1970-01-01 00:00 UTC 是庚戌日
+    // 庚 = 索引6，戌 = 索引10
+    let mut days_from_epoch = (datetime.and_utc().timestamp() / 86400) as i32;
+    
+    // 子时换日处理: 23:00-01:00为子时
+    // 晚子时(23:00-24:00)日柱按次日计算
+    if hour >= 23 {
+        days_from_epoch += 1;
+    }
+    
+    let day_gan_idx = ((days_from_epoch + 6) % 10 + 10) % 10;  // 庚=6
+    let day_zhi_idx = ((days_from_epoch + 10) % 12 + 12) % 12; // 戌=10
+    
+    // ==================== 时柱计算 (五鼠遁) ====================
+    // 时支: 子时(23-1点)=0, 丑时(1-3点)=1, ...
+    // 注意: 23点后已经是子时，属于第二天
+    let hour_zhi_idx = if hour >= 23 {
+        0  // 晚子时
+    } else {
+        ((hour + 1) / 2) % 12
+    };
+    
+    // 五鼠遁计算时干
+    // 口诀: 甲己还加甲，乙庚丙作初，丙辛从戊起，丁壬庚子居，戊癸何方发，壬子是真途
+    // 公式: 子时天干 = (日干 % 5) * 2，然后按时支顺推
+    let zi_hour_gan_idx = (day_gan_idx % 5) * 2;  // 子时的天干索引
+    let hour_gan_idx = ((zi_hour_gan_idx + hour_zhi_idx) % 10 + 10) % 10;
     
     // 构建四柱（包含十神和藏干）
     let create_pillar = |gan_idx: i32, zhi_idx: i32, day_gan_idx: usize| -> serde_json::Value {
@@ -843,13 +1043,17 @@ async fn get_bazi(Query(params): Query<BaziQuery>) -> Result<Json<serde_json::Va
     
     let gender = params.gender.unwrap_or_else(|| "male".to_string());
     
+    // 计算起运年龄 (根据出生日到节气的天数)
+    let start_age = calculate_start_age(jd, &gender, year_gan_idx);
+    
     // 计算大运
     let dayun = calculate_dayun(
         month_gan_idx,
         month_zhi_idx,
         year_gan_idx,
         &gender,
-        year
+        year,  // 出生年份 (公历)
+        start_age
     );
     
     // 计算当前小运
@@ -867,6 +1071,10 @@ async fn get_bazi(Query(params): Query<BaziQuery>) -> Result<Json<serde_json::Va
     
     // 日主十神分析
     let day_gan_str = TIANGAN[day_gan_idx as usize % 10];
+    
+    // 获取当前节气
+    let solar_term_idx = get_solar_term_index(solar_longitude);
+    let current_solar_term = SOLAR_TERMS[solar_term_idx];
     
     Ok(Json(json!({
         "year_pillar": year_pillar,
@@ -892,7 +1100,9 @@ async fn get_bazi(Query(params): Query<BaziQuery>) -> Result<Json<serde_json::Va
         "gender": gender,
         "birth_year": year,
         "zodiac": SHENGXIAO[year_zhi_idx as usize % 12],
-        "solar_term": null
+        "solar_term": current_solar_term,
+        "start_age": start_age.round() as i32,
+        "solar_longitude": solar_longitude
     })))
 }
 
