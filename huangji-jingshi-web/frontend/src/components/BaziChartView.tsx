@@ -236,30 +236,31 @@ export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
               </div>
               
               {/* 干支 */}
-              <div className="text-center space-y-1">
-                {/* 天干 */}
-                <div className={`text-2xl font-bold font-serif ${colors.text}`}>
-                  {pillar.data.gan}
+              <div className="text-center space-y-2">
+                {/* 天干 + 五行 */}
+                <div>
+                  <div className={`text-3xl font-bold font-serif ${colors.text}`}>
+                    {pillar.data.gan}
+                  </div>
+                  <div className={`text-[9px] ${colors.text} opacity-70 mt-0.5`}>
+                    {pillar.data.gan_wuxing}
+                  </div>
                 </div>
-                {/* 地支 */}
-                <div className="text-2xl font-bold font-serif text-white/90">
-                  {pillar.data.zhi}
-                </div>
-              </div>
-              
-              {/* 五行标签 */}
-              <div className="mt-3 text-center space-y-1">
-                <div className={`text-[10px] ${colors.text}`}>
-                  {pillar.data.gan_wuxing}
-                </div>
-                <div className="text-[10px] text-gray-400">
-                  {pillar.data.zhi_wuxing} · {pillar.data.zhi_animal}
+                
+                {/* 地支 + 五行·生肖 */}
+                <div>
+                  <div className="text-3xl font-bold font-serif text-white/90">
+                    {pillar.data.zhi}
+                  </div>
+                  <div className="text-[9px] text-gray-400 mt-0.5">
+                    {pillar.data.zhi_wuxing} · {pillar.data.zhi_animal}
+                  </div>
                 </div>
               </div>
               
               {/* 纳音 */}
-              <div className="mt-2 text-center">
-                <span className="text-[9px] px-2 py-0.5 rounded-full bg-black/30 text-gray-400">
+              <div className="mt-3 text-center">
+                <span className="inline-block text-[8px] px-2 py-1 rounded-md bg-black/40 text-gray-400 border border-white/5 whitespace-nowrap">
                   {pillar.data.nayin}
                 </span>
               </div>
