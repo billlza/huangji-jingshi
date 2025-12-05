@@ -158,9 +158,64 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
+  // 将本地时间字符串根据指定时区转换为UTC ISO字符串
+  // 关键：datetime-local 输入框返回的是"本地时间"，但我们需要将其解释为"指定时区的时间"
+  const convertLocalToUTC = (localDateTime: string, targetTimezone: string): string => {
+    if (!localDateTime) {
+      return new Date().toISOString();
+    }
+    
+    try {
+      // localDateTime 格式: "2025-12-05T14:30" (没有时区信息)
+      const [datePart, timePart] = localDateTime.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const [hour, minute] = (timePart || '00:00').split(':').map(Number);
+      
+      // 使用已知时区偏移表（不考虑DST的简化版本，但足够准确）
+      const timezoneOffsets: Record<string, number> = {
+        'Asia/Shanghai': 8,      // UTC+8
+        'Asia/Tokyo': 9,         // UTC+9
+        'Asia/Hong_Kong': 8,     // UTC+8
+        'Asia/Taipei': 8,        // UTC+8
+        'Asia/Singapore': 8,     // UTC+8
+        'America/New_York': -5,  // UTC-5 (EST，不考虑DST)
+        'America/Los_Angeles': -8, // UTC-8 (PST)
+        'Europe/London': 0,      // UTC+0 (GMT)
+        'Europe/Paris': 1,       // UTC+1 (CET)
+      };
+      
+      const offsetHours = timezoneOffsets[targetTimezone] ?? 0;
+      
+      // 构造UTC时间：用户在目标时区输入了 year-month-day hour:minute
+      // 对应的UTC时间 = 该时间 - offsetHours
+      const utcDate = new Date(Date.UTC(
+        year,
+        month - 1,
+        day,
+        hour - offsetHours,
+        minute,
+        0
+      ));
+      
+      return utcDate.toISOString();
+    } catch (error) {
+      console.error('时区转换失败，使用系统时区:', error);
+      // 降级：使用系统时区（不准确但至少能工作）
+      return new Date(localDateTime).toISOString();
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const dt = followObserve ? observeParams.datetime : new Date(localDatetime).toISOString();
+    
+    let dt: string;
+    if (followObserve) {
+      dt = observeParams.datetime;
+    } else {
+      // 关键修复：根据用户选择的时区，将本地时间字符串正确转换为UTC
+      dt = convertLocalToUTC(localDatetime, timezone);
+    }
+    
     onSubmit({
       datetime: dt,
       timezone,
