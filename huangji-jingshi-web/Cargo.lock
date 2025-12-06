@@ -107,6 +107,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "chrono",
+ "huangji_core",
  "once_cell",
  "reqwest",
  "serde",
