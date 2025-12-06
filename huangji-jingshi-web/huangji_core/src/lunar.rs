@@ -70,8 +70,7 @@ fn get_solar_lambda(jd: f64) -> f64 {
     let m_rad = m.to_radians();
     let c = (1.914602 - 0.004817 * d_jc) * m_rad.sin()
           + 0.019993 * (2.0 * m_rad).sin();
-    let lambda = (l0 + c).rem_euclid(360.0);
-    lambda
+    (l0 + c).rem_euclid(360.0)
 }
 
 // 计算节气与月建（月支）
@@ -178,10 +177,9 @@ pub fn compute_lunar(datetime: &DateTime<Utc>) -> anyhow::Result<LunarInfo> {
     let mut bazi_year = year;
     if month == 1 {
         bazi_year = year - 1;
-    } else if month == 2 {
-        if lambda < 315.0 && lambda > 270.0 { // 270 is Winter Solstice, safe buffer
-            bazi_year = year - 1;
-        }
+    } else if month == 2 && lambda < 315.0 && lambda > 270.0 {
+        // 270 is Winter Solstice, safe buffer
+        bazi_year = year - 1;
     }
     // For other months (3-12), bazi_year = year.
     
@@ -199,9 +197,10 @@ pub fn compute_lunar(datetime: &DateTime<Utc>) -> anyhow::Result<LunarInfo> {
 
     // 5. Ganzhi Hour (Five Rats)
     // Formula: (DayStem%5 * 2 + HourBranch) % 10
-    // Hour Branch: (H+1)/2 % 12
+    // Hour Branch: (H+1)/2 % 12 (traditional formula)
     use chrono::Timelike;
     let hour = datetime.hour();
+    #[allow(clippy::manual_div_ceil)]
     let hour_branch_idx = ((hour + 1) / 2 % 24 % 12) as usize;
     let hour_stem_idx = (day_stem_idx % 5 * 2 + hour_branch_idx) % 10;
     let ganzhi_hour = get_ganzhi(hour_stem_idx, hour_branch_idx);

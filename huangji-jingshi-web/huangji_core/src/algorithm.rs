@@ -140,7 +140,7 @@ pub fn get_hj_info(year_ad: i32) -> HuangjiInfo {
     // 3. Hui (10800)
     let hui_idx = (acc - 1) / 10800 + 1;
     let hui_names = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
-    let hui_name_char = if hui_idx >= 1 && hui_idx <= 12 { hui_names[(hui_idx - 1) as usize] } else { "?" };
+    let hui_name_char = if (1..=12).contains(&hui_idx) { hui_names[(hui_idx - 1) as usize] } else { "?" };
     let hui_name = hui_name_char.to_string();
     
     let hui_start_acc = (hui_idx - 1) * 10800 + 1;

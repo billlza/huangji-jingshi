@@ -83,7 +83,7 @@ pub fn compute_sky(req: &SkyRequest) -> SkyResponse {
                 for line in content.lines() {
                     let line = line.trim();
                     if line.is_empty() { continue; }
-                    let parts: Vec<&str> = line.split(|c| c == ',' || c == ';' || c == '\t' || c == ' ').filter(|s| !s.is_empty()).collect();
+                    let parts: Vec<&str> = line.split([',', ';', '\t', ' ']).filter(|s| !s.is_empty()).collect();
                     if parts.len() < 2 { continue; }
                     if let (Ok(y), Ok(v)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {
                         series.push((y, v));
@@ -115,16 +115,14 @@ pub fn compute_sky(req: &SkyRequest) -> SkyResponse {
         None
     }
     fn delta_t_segmented(y: f64) -> f64 {
-        if y >= 1986.0 && y < 2005.0 {
+        if (1986.0..2005.0).contains(&y) {
             let x = y - 2000.0;
             63.86 + 0.3345 * x - 0.060374 * x * x + 0.0017275 * x * x * x + 0.000651814 * x.powi(4) + 0.00002373599 * x.powi(5)
-        } else if y >= 1900.0 && y < 1986.0 {
+        } else if (1900.0..1986.0).contains(&y) {
             let x = y - 1900.0;
             -2.79 + 1.494119 * x - 0.0598939 * x * x + 0.0061966 * x.powi(3) - 0.000197 * x.powi(4)
-        } else if y >= 2005.0 && y <= 2100.0 {
-            let x = y - 2000.0;
-            62.92 + 0.32217 * x + 0.005589 * x * x
         } else {
+            // For y >= 2005.0 or y < 1900.0
             let x = y - 2000.0;
             62.92 + 0.32217 * x + 0.005589 * x * x
         }

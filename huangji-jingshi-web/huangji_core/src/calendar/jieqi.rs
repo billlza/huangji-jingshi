@@ -118,8 +118,8 @@ impl SolarTerm {
     /// 从索引创建节气
     pub fn from_index(idx: u8) -> Option<Self> {
         if idx < 24 {
-            // Safe because we validate the range
-            Some(unsafe { std::mem::transmute(idx) })
+            // Safe because we validate the range and SolarTerm is #[repr(u8)]
+            Some(unsafe { std::mem::transmute::<u8, SolarTerm>(idx) })
         } else {
             None
         }

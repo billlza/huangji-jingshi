@@ -202,7 +202,7 @@ async fn health_check() -> impl IntoResponse {
         "message": "皇极经世后端服务正常运行",
         "timestamp": Utc::now().to_rfc3339(),
         "version": "1.0.0-fixed",
-        "data_loaded": TIMELINE_DATA.read().unwrap().len() > 0
+        "data_loaded": !TIMELINE_DATA.read().unwrap().is_empty()
     }))
 }
 
@@ -567,6 +567,7 @@ const ZHI_CANGGAN: [[&str; 3]; 12] = [
 // 十神计算表 (Ten Gods Table)
 // 根据日干与其他天干的关系，返回十神名称
 // 阴阳属性: 0,2,4,6,8=阳  1,3,5,7,9=阴
+#[allow(clippy::manual_is_multiple_of)]
 fn calculate_ten_god(day_gan_idx: usize, target_gan_idx: usize) -> &'static str {
     let day_is_yang = day_gan_idx % 2 == 0;
     let target_is_yang = target_gan_idx % 2 == 0;

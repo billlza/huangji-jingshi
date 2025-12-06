@@ -60,15 +60,15 @@ pub fn compute_fortune(req: &FortuneRequest) -> FortuneResponse {
     // We want array of 6 bits, from TOP to BOTTOM.
     // Upper: bit 2, 1, 0. Lower: bit 2, 1, 0.
     let (u, l) = algorithm::get_hexagram_struct(&algo_info.year_gua);
-    let mut hex_code = Vec::new();
-    // Upper
-    hex_code.push((u >> 2) & 1);
-    hex_code.push((u >> 1) & 1);
-    hex_code.push(u & 1);
-    // Lower
-    hex_code.push((l >> 2) & 1);
-    hex_code.push((l >> 1) & 1);
-    hex_code.push(l & 1);
+    // Upper trigram bits (2,1,0), then Lower trigram bits (2,1,0)
+    let hex_code = vec![
+        (u >> 2) & 1,
+        (u >> 1) & 1,
+        u & 1,
+        (l >> 2) & 1,
+        (l >> 1) & 1,
+        l & 1,
+    ];
 
     // 5. Calculate Annual Flying Star (Nine Palace)
     let mut star_val = (11 - (if year > 0 { year } else { year + 1 }) % 9) % 9;
@@ -76,10 +76,10 @@ pub fn compute_fortune(req: &FortuneRequest) -> FortuneResponse {
     if star_val < 0 { star_val += 9; } 
     
     let stars = ["", "一白贪狼", "二黑巨门", "三碧禄存", "四绿文曲", "五黄廉贞", "六白武曲", "七赤破军", "八白左辅", "九紫右弼"];
-    let flying_star = if star_val >= 1 && star_val <= 9 {
+    let flying_star = if (1..=9).contains(&star_val) {
         stars[star_val as usize].to_string()
     } else {
-        "".to_string()
+        String::new()
     };
 
     let next_yun = algo_info.yun.end_year + 1;

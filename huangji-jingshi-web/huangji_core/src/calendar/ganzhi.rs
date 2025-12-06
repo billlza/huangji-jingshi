@@ -67,12 +67,11 @@ pub struct BaziPillars {
 /// - (天干索引, 地支索引)
 pub fn calc_year_pillar(year: i32, solar_longitude: f64) -> (usize, usize) {
     // 立春 = 黄经 315°
-    // 黄经 >= 315 或 < 315 且 >= 270 (冬至后) 之前为上一年
-    // 简化判断: 黄经 < 315 且 >= 270 为上一年
-    let bazi_year = if solar_longitude >= 315.0 || solar_longitude < 270.0 {
-        year
-    } else {
+    // 黄经在 [270°, 315°) 范围内为立春前，属上一年
+    let bazi_year = if (270.0..315.0).contains(&solar_longitude) {
         year - 1
+    } else {
+        year
     };
     
     let gan_idx = ((bazi_year - 4) % 10 + 10) % 10;
@@ -230,6 +229,7 @@ pub fn calc_bazi_pillars(dt_utc: &DateTime<Utc>, longitude: f64) -> BaziPillars 
 /// 
 /// # 返回
 /// - 起运年龄 (岁)
+#[allow(clippy::manual_is_multiple_of)]
 pub fn calc_dayun_start_age(jd: f64, year_gan_idx: usize, is_male: bool) -> f64 {
     let year_is_yang = year_gan_idx % 2 == 0;  // 阳年: 甲丙戊庚壬
     
@@ -272,7 +272,6 @@ pub fn get_nayin(gan_idx: usize, zhi_idx: usize) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
 
     #[test]
     fn test_year_pillar_after_lichun() {
