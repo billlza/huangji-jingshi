@@ -11,13 +11,38 @@ interface ControlPanelProps {
   isLoading: boolean;
 }
 
+// P1 修复：固定使用 UTC+8 (北京时间)，不依赖浏览器时区
+const TZ_OFFSET_MINUTES = 480; // UTC+8 = 480 分钟
+
 const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate, isLoading }) => {
-  // Local state for inputs
+  // P1 修复：显式时区转换函数
+  // 将本地时间字符串 "YYYY-MM-DDTHH:mm" 按 UTC+8 解析为 UTC ISO 字符串
+  const localToUtcIso = (localDatetime: string): string => {
+    if (!localDatetime) return new Date().toISOString();
+    const [datePart, timePart] = localDatetime.split('T');
+    const [y, m, d] = datePart.split('-').map(Number);
+    const [hh, mm] = timePart.split(':').map(Number);
+    // 构造 UTC 时间戳：本地时间 - 时区偏移
+    const utcMs = Date.UTC(y, m - 1, d, hh, mm) - TZ_OFFSET_MINUTES * 60_000;
+    return new Date(utcMs).toISOString();
+  };
+
+  // 将 UTC ISO 字符串转为本地时间字符串 (UTC+8)
+  const utcIsoToLocal = (isoString: string): string => {
+    const utcDate = new Date(isoString);
+    const localMs = utcDate.getTime() + TZ_OFFSET_MINUTES * 60_000;
+    const localDate = new Date(localMs);
+    return localDate.toISOString().slice(0, 16);
+  };
+
+  // 获取当前北京时间的本地格式
   const getCurrentLocalISO = () => {
     const now = new Date();
-    const offset = now.getTimezoneOffset() * 60000;
-    return (new Date(now.getTime() - offset)).toISOString().slice(0, 16);
+    const localMs = now.getTime() + TZ_OFFSET_MINUTES * 60_000;
+    const localDate = new Date(localMs);
+    return localDate.toISOString().slice(0, 16);
   };
+
   const initialLive = (() => {
     const paramDate = new Date(initialParams.datetime);
     const now = new Date();
@@ -26,9 +51,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
   })();
   const initialDatetime = (() => {
     if (!initialLive) {
-      const paramDate = new Date(initialParams.datetime);
-      const offset = paramDate.getTimezoneOffset() * 60000;
-      return (new Date(paramDate.getTime() - offset)).toISOString().slice(0, 16);
+      return utcIsoToLocal(initialParams.datetime);
     }
     return getCurrentLocalISO();
   })();
@@ -83,10 +106,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
     setLon(newLon.toFixed(4));
     setLocationStatus(`${source}已锁定`);
     
-    // 自动触发计算以与星空联动
-    const date = new Date(localDatetime);
+    // P1 修复：使用显式时区转换
     onCalculate({
-      datetime: date.toISOString(),
+      datetime: localToUtcIso(localDatetime),
       lat: newLat,
       lon: newLon
     });
@@ -157,19 +179,16 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
 
     setError(null);
 
-    // Convert local datetime back to ISO (UTC)
-    const date = new Date(localDatetime);
+    // P1 修复：使用显式 UTC+8 转换，不依赖浏览器时区
     onCalculate({
-      datetime: date.toISOString(),
+      datetime: localToUtcIso(localDatetime),
       lat: latNum,
       lon: lonNum
     });
   };
 
-  // Get timezone string
-  // const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const offsetHours = -(new Date().getTimezoneOffset() / 60);
-  const offsetString = `UTC${offsetHours >= 0 ? '+' : ''}${offsetHours}`;
+  // P1 修复：固定显示 UTC+8，与实际转换逻辑一致
+  const offsetString = 'UTC+8';
 
   const handleSetNow = () => {
     setIsLive(true); // Re-enable live mode
@@ -186,8 +205,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
     const lonNum = parseFloat(lon);
     if (isNaN(latNum) || latNum < -90 || latNum > 90) return;
     if (isNaN(lonNum) || lonNum < -180 || lonNum > 180) return;
-    const date = new Date(localDatetime);
-    onCalculate({ datetime: date.toISOString(), lat: latNum, lon: lonNum });
+    // P1 修复：使用显式 UTC+8 转换
+    onCalculate({ datetime: localToUtcIso(localDatetime), lat: latNum, lon: lonNum });
   }, [localDatetime, isLive, lat, lon, onCalculate]);
 
   return (

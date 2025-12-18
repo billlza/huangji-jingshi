@@ -20,6 +20,8 @@ use huangji_core::calendar::ganzhi::{
     calc_bazi_pillars, calc_dayun_start_age,
     TIANGAN, DIZHI, SHENGXIAO, GAN_WUXING, ZHI_WUXING, NAYIN,
 };
+use huangji_core::calendar::time_rule::{to_rule_datetime, datetime_to_hj_year, YearStartMode};
+use huangji_core::algorithm::{get_hj_info, year_to_acc};
 
 // 静态数据缓存
 static TIMELINE_DATA: Lazy<RwLock<HashMap<i32, serde_json::Value>>> = Lazy::new(|| {
@@ -249,6 +251,11 @@ async fn calculate(Json(payload): Json<serde_json::Value>) -> impl IntoResponse 
 #[derive(Deserialize)]
 struct TimelineQuery {
     datetime: String,
+    /// 时区偏移（分钟），东为正 UTC+8=+480, 西为负 UTC-5=-300
+    /// 注意：与 JS Date.getTimezoneOffset() 符号相反！
+    #[serde(rename = "tzOffsetMinutes")]
+    tz_offset_minutes: Option<i32>,
+    lon: Option<f64>,  // 用于真太阳时校正
 }
 
 #[derive(Deserialize)]
@@ -283,11 +290,14 @@ struct MappingQuery {
 struct BaziQuery {
     datetime: String,
     #[allow(dead_code)]
-    timezone: Option<String>,  // 保留用于真太阳时计算
+    timezone: Option<String>,  // 保留用于兼容性
+    /// 时区偏移（分钟），东为正 UTC+8=+480, 西为负 UTC-5=-300
+    /// 注意：与 JS Date.getTimezoneOffset() 符号相反！
+    #[serde(rename = "tzOffsetMinutes")]
+    tz_offset_minutes: Option<i32>,
     #[allow(dead_code)]
     lat: Option<f64>,          // 保留用于地方时校正
-    #[allow(dead_code)]
-    lon: Option<f64>,          // 保留用于地方时校正
+    lon: Option<f64>,          // 用于真太阳时校正
     gender: Option<String>,
 }
 
@@ -423,14 +433,32 @@ async fn get_mapping(Query(params): Query<MappingQuery>) -> impl IntoResponse {
 
 // 获取时间线
 async fn get_timeline(Query(params): Query<TimelineQuery>) -> impl IntoResponse {
-    // 从 datetime 参数中提取年份
-    let year: i32 = params.datetime
-        .split('-')
-        .next()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(2025);
+    // 解析 UTC 时间
+    let datetime_utc = chrono::DateTime::parse_from_rfc3339(&params.datetime)
+        .map(|dt| dt.with_timezone(&Utc))
+        .or_else(|_| {
+            chrono::NaiveDateTime::parse_from_str(&params.datetime, "%Y-%m-%dT%H:%M:%S")
+                .map(|dt| Utc.from_utc_datetime(&dt))
+        })
+        .unwrap_or_else(|_| Utc::now());
     
-    tracing::debug!("📅 查询时间线: {} (from datetime: {})", year, params.datetime);
+    // 获取时区偏移（默认 UTC+8 = 480 分钟）
+    // tzOffsetMinutes: 东为正 UTC+8=+480, 西为负 UTC-5=-300
+    let tz_offset_minutes = params.tz_offset_minutes.unwrap_or(480);
+    let lon = params.lon.unwrap_or(116.4);
+    
+    // 使用统一入口计算 hj_year（使用公历岁首模式，不使用真太阳时）
+    let rule_dt = to_rule_datetime(datetime_utc, tz_offset_minutes, lon, false);
+    let hj_year = datetime_to_hj_year(rule_dt, YearStartMode::GregorianNewYear);
+    
+    // 检查 year=0 的情况
+    if hj_year == 0 {
+        // 这不应该发生，因为 datetime_to_hj_year 已经处理了
+        tracing::warn!("⚠️ hj_year=0 不应该出现");
+    }
+    
+    tracing::debug!("📅 查询时间线: hj_year={} (from datetime: {})", hj_year, params.datetime);
+    let year = hj_year;
     
     let data = TIMELINE_DATA.read().unwrap();
     if let Some(timeline) = data.get(&year) {

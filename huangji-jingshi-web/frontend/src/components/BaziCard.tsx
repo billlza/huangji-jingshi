@@ -28,9 +28,12 @@ export default function BaziCard({ observeParams }: BaziCardProps) {
     setError(null);
     
     try {
+      // tzOffsetMinutes: 时区偏移（分钟），东为正 UTC+8=+480, 西为负 UTC-5=-300
+      // 注意：与 JS Date.getTimezoneOffset() 符号相反！不要直接使用 getTimezoneOffset() 赋值
       const q = new URLSearchParams({
         datetime: params.datetime,
         timezone: params.timezone,
+        tzOffsetMinutes: params.tzOffsetMinutes.toString(),
         lat: params.lat.toString(),
         lon: params.lon.toString(),
         gender: params.gender

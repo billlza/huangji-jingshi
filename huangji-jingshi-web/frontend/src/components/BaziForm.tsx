@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { Calendar, MapPin, User, Link2, Link2Off, Globe, LocateFixed, Loader2 } from 'lucide-react';
 import { reverseGeocode, getIPLocation, geocode } from '../utils/geolocation';
+import { convertLocalToUTC, getTimezoneOffsetMinutes } from '../utils/timezoneConvert';
 
 interface BaziFormProps {
   // 从上层传入的观测时间参数
@@ -19,8 +20,11 @@ interface BaziFormProps {
 }
 
 export interface BaziParams {
-  datetime: string;  // ISO8601
+  datetime: string;  // ISO8601 UTC 时间
   timezone: string;  // e.g., "Asia/Shanghai" or "+08:00"
+  // tzOffsetMinutes: 时区偏移（分钟），东为正 UTC+8=+480, 西为负 UTC-5=-300
+  // 注意：与 JS Date.getTimezoneOffset() 符号相反！不要直接使用 getTimezoneOffset() 赋值
+  tzOffsetMinutes: number;
   lat: number;
   lon: number;
   gender: 'male' | 'female' | 'other';
@@ -151,85 +155,27 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
-  // 将本地时间字符串根据指定时区转换为UTC ISO字符串
-  // 
-  // 使用说明（重要！）：
-  // 
-  // 你是北京时间 02:48 出生的，应该这样填写：
-  // 1. 时区选择：选择"北京时间 (UTC+8)"
-  // 2. 时间输入：在输入框中输入 "02:48"
-  // 
-  // 系统会自动将你输入的"02:48"理解为"北京时间 02:48"，
-  // 然后转换为UTC时间进行计算。
-  // 
-  // 注意：
-  // - 输入框会根据你的设备时区显示时间
-  // - 如果你在北京，输入框显示的就是北京时间，直接输入"02:48"即可
-  // - 如果你在其他时区，输入框显示的是当地时区时间，你需要换算后输入
-  //   例如：你在美国（UTC-5），想输入北京时间02:48，需要输入美国时间13:48（前一天）
-  // - 但更简单的方法是：直接输入"02:48"，系统会根据你选择的"北京时间"正确理解
-  //
-  // 实际上，系统会将你输入的时间理解为"选择的时区的时间"，
-  // 所以无论你在哪里，选择"北京时间"并输入"02:48"，结果都是一致的。
-  const convertLocalToUTC = (localDateTime: string, targetTimezone: string): string => {
-    if (!localDateTime) {
-      return new Date().toISOString();
-    }
-    
-    try {
-      // localDateTime 格式: "2025-12-05T02:48" (没有时区信息)
-      const [datePart, timePart] = localDateTime.split('T');
-      const [year, month, day] = datePart.split('-').map(Number);
-      const [hour, minute] = (timePart || '00:00').split(':').map(Number);
-      
-      // 获取目标时区的UTC偏移（小时）
-      const timezoneOffsets: Record<string, number> = {
-        'Asia/Shanghai': 8,      // UTC+8
-        'Asia/Tokyo': 9,         // UTC+9
-        'Asia/Hong_Kong': 8,     // UTC+8
-        'Asia/Taipei': 8,        // UTC+8
-        'Asia/Singapore': 8,     // UTC+8
-        'America/New_York': -5,  // UTC-5 (EST，不考虑DST)
-        'America/Los_Angeles': -8, // UTC-8 (PST)
-        'Europe/London': 0,      // UTC+0 (GMT)
-        'Europe/Paris': 1,       // UTC+1 (CET)
-      };
-      
-      const targetOffsetHours = timezoneOffsets[targetTimezone] ?? 0;
-      
-      // 核心逻辑：用户输入的时间被理解为"目标时区的时间"
-      // 直接转换为UTC：UTC = 目标时区时间 - 目标时区偏移
-      const utcDate = new Date(Date.UTC(
-        year,
-        month - 1,
-        day,
-        hour - targetOffsetHours,  // 直接减去目标时区偏移
-        minute,
-        0
-      ));
-      
-      return utcDate.toISOString();
-    } catch (error) {
-      console.error('时区转换失败，使用系统时区:', error);
-      // 降级：使用系统时区（不准确但至少能工作）
-      return new Date(localDateTime).toISOString();
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 获取时区偏移（分钟）
+    // tzOffsetMinutes: 东为正 UTC+8=+480, 西为负 UTC-5=-300
+    // 注意：不要使用 getTimezoneOffset() 直接赋值（符号相反）
+    const tzOffsetMinutes = getTimezoneOffsetMinutes(timezone);
     
     let dt: string;
     if (followObserve) {
       dt = observeParams.datetime;
     } else {
-      // 关键修复：根据用户选择的时区，将本地时间字符串正确转换为UTC
-      dt = convertLocalToUTC(localDatetime, timezone);
+      // 关键修复：根据用户选择的时区偏移，将本地时间字符串正确转换为UTC
+      // 显式使用 tzOffsetMinutes，不依赖浏览器时区
+      dt = convertLocalToUTC(localDatetime, tzOffsetMinutes);
     }
     
     onSubmit({
       datetime: dt,
       timezone,
+      tzOffsetMinutes,
       lat: followObserve ? observeParams.lat : (lat || 39.9042),  // 默认北京
       lon: followObserve ? observeParams.lon : (lon || 116.4074),
       gender
