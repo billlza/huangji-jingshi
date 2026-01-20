@@ -106,7 +106,8 @@ async fn main() {
         .route("/api/geoip", get(get_geoip))
         
         // 静态文件服务
-        .route("/static/:file", get(static_handler))
+        // axum 0.8 uses matchit syntax: path params are `{name}` (not `:name`)
+        .route("/static/{file}", get(static_handler))
         
         // CORS - 允许所有来源
         .layer(
