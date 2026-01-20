@@ -238,7 +238,7 @@ export default function Settings() {
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error('[Settings] Remove avatar failed:', err);
-      let msg = err instanceof Error ? err.message : '删除头像失败';
+      const msg = err instanceof Error ? err.message : '删除头像失败';
       
       // 如果 bucket 不存在，只更新元数据即可，不算错误
       if (msg.includes('Bucket not found') || msg.includes('not found')) {

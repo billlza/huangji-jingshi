@@ -115,12 +115,28 @@ const extractWuxing = (s: string) => s.replace(/[阴阳]/g, '');
 
 export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
   const [showDetail, setShowDetail] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const mounted = typeof document !== 'undefined';
   const hideTimerRef = useRef<number | null>(null);
+
+  // 安全的关闭函数，带防抖（需要在 effect 里引用，故提前声明）
+  const handleClose = () => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+    }
+    setShowDetail(false);
+  };
+
+  // 安全的打开函数
+  const handleOpen = () => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+    setShowDetail(true);
+  };
 
   // 确保客户端渲染
   useEffect(() => {
-    setMounted(true);
     return () => {
       if (hideTimerRef.current) {
         clearTimeout(hideTimerRef.current);
@@ -147,23 +163,6 @@ export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
       document.body.style.overflow = '';
     };
   }, [showDetail]);
-
-  // 安全的关闭函数，带防抖
-  const handleClose = () => {
-    if (hideTimerRef.current) {
-      clearTimeout(hideTimerRef.current);
-    }
-    setShowDetail(false);
-  };
-
-  // 安全的打开函数
-  const handleOpen = () => {
-    if (hideTimerRef.current) {
-      clearTimeout(hideTimerRef.current);
-      hideTimerRef.current = null;
-    }
-    setShowDetail(true);
-  };
 
   if (isLoading) {
     return (

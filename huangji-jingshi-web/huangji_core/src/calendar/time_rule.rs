@@ -6,7 +6,7 @@
 //! - tzOffsetMinutes: 时区偏移（分钟），东为正 UTC+8=+480, 西为负 UTC-5=-300
 //! - 注意：与 JS Date.getTimezoneOffset() 符号相反！
 
-use chrono::{DateTime, Utc, FixedOffset, Datelike, Timelike, Duration};
+use chrono::{DateTime, Utc, FixedOffset, Datelike, Duration};
 
 /// 岁首模式
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -137,6 +137,7 @@ pub fn utc_to_hj_year(
 mod tests {
     use super::*;
     use chrono::TimeZone;
+    use chrono::Timelike;
     
     #[test]
     fn test_to_rule_datetime_utc8() {

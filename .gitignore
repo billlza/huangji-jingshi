@@ -895,3 +895,6 @@
 # uploads/
 # downloads/
 
+# Local tools installed during dependency checks
+.cargo-install/
+

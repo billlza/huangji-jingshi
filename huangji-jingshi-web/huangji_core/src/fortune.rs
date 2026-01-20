@@ -1,10 +1,20 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use crate::{data, lunar, algorithm};
+use crate::calendar::time_rule::{utc_to_hj_year, YearStartMode};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FortuneRequest {
     pub datetime: DateTime<Utc>,
+    /// 时区偏移（分钟），东为正 UTC+8=+480, 西为负 UTC-5=-300
+    #[serde(default)]
+    pub tz_offset_minutes: Option<i32>,
+    /// 经度（用于真太阳时校正）
+    #[serde(default)]
+    pub lon: Option<f64>,
+    /// 是否使用真太阳时（默认 false）
+    #[serde(default)]
+    pub use_true_solar_time: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,7 +47,17 @@ pub struct FortuneResponse {
 }
 
 pub fn compute_fortune(req: &FortuneRequest) -> FortuneResponse {
-    let year = chrono::Datelike::year(&req.datetime);
+    // 用统一时间规则把 UTC 转换为经世年（无公元0年），避免 UTC 跨年导致的年界错误
+    let tz_offset_minutes = req.tz_offset_minutes.unwrap_or(480);
+    let lon = req.lon.unwrap_or(116.4);
+    let use_true_solar_time = req.use_true_solar_time.unwrap_or(false);
+    let year = utc_to_hj_year(
+        req.datetime,
+        tz_offset_minutes,
+        lon,
+        use_true_solar_time,
+        YearStartMode::GregorianNewYear,
+    );
     
     // 1. Calculate Algorithmically (High Priority for Fortune)
     let algo_info = algorithm::get_hj_info(year);
@@ -51,8 +71,8 @@ pub fn compute_fortune(req: &FortuneRequest) -> FortuneResponse {
         (format!("数据未覆盖 {} 年", year), "?".to_string(), None)
     };
     
-    // 3. Calculate Lunar/Ganzhi
-    let lunar_info = lunar::compute_lunar(&req.datetime).ok();
+    // 3. Calculate Lunar/Ganzhi（按规则时间取本地年月日/时）
+    let lunar_info = lunar::compute_lunar(&req.datetime, tz_offset_minutes, lon, use_true_solar_time).ok();
     let ganzhi = lunar_info.as_ref().map(|l| l.ganzhi_year.clone()).unwrap_or_else(|| "未知".to_string());
 
     // 4. Calculate Hexagram Code (Binary)

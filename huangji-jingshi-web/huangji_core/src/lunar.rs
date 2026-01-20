@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use chinese_lunisolar_calendar::{LunisolarDate, SolarDate};
-use chrono::{Datelike, DateTime, Utc};
+use chrono::{Datelike, DateTime, Timelike, Utc};
 // use astro::*; // Unused
+use crate::calendar::time_rule::to_rule_datetime;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LunarInfo {
@@ -124,10 +125,25 @@ fn get_yi_ji(officer: &str) -> (Vec<String>, Vec<String>) {
     )
 }
 
-pub fn compute_lunar(datetime: &DateTime<Utc>) -> anyhow::Result<LunarInfo> {
-    let year = datetime.year() as u16;
-    let month = datetime.month() as u8;
-    let day = datetime.day() as u8;
+pub fn compute_lunar(
+    datetime_utc: &DateTime<Utc>,
+    tz_offset_minutes: i32,
+    lon: f64,
+    use_true_solar_time: bool,
+) -> anyhow::Result<LunarInfo> {
+    // 使用“规则时间”（时区 + 可选真太阳时校正）来取本地年月日/时，
+    // 避免 UTC 跨日导致的农历/干支显示错误。
+    let rule_dt = to_rule_datetime(*datetime_utc, tz_offset_minutes, lon, use_true_solar_time);
+
+    // chinese-lunisolar-calendar 目前只支持公元正数年份（u16）
+    let year_i32 = rule_dt.year();
+    if year_i32 <= 0 {
+        anyhow::bail!("农历/黄历暂不支持公元前或公元0年：year={}", year_i32);
+    }
+
+    let year = year_i32 as u16;
+    let month = rule_dt.month() as u8;
+    let day = rule_dt.day() as u8;
 
     let solar_date = SolarDate::from_ymd(year, month, day)?;
     let lunar_date = LunisolarDate::from_solar_date(solar_date)?;
@@ -137,7 +153,8 @@ pub fn compute_lunar(datetime: &DateTime<Utc>) -> anyhow::Result<LunarInfo> {
     let _lunar_year_int = lunar_year_str.parse::<u16>().unwrap_or(year);
 
     // 2. Ganzhi Day & JD
-    let timestamp = datetime.timestamp();
+    // JD 以“同一瞬时”的 UTC 为准（与时区无关）
+    let timestamp = datetime_utc.timestamp();
     let jd = (timestamp as f64 / 86400.0) + 2440587.5;
     let (day_stem_idx, day_branch_idx, ganzhi_day) = get_ganzhi_day(jd);
     
@@ -198,8 +215,7 @@ pub fn compute_lunar(datetime: &DateTime<Utc>) -> anyhow::Result<LunarInfo> {
     // 5. Ganzhi Hour (Five Rats)
     // Formula: (DayStem%5 * 2 + HourBranch) % 10
     // Hour Branch: (H+1)/2 % 12 (traditional formula)
-    use chrono::Timelike;
-    let hour = datetime.hour();
+    let hour = rule_dt.hour();
     #[allow(clippy::manual_div_ceil)]
     let hour_branch_idx = ((hour + 1) / 2 % 24 % 12) as usize;
     let hour_stem_idx = (day_stem_idx % 5 * 2 + hour_branch_idx) % 10;

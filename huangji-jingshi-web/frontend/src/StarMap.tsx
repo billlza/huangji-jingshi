@@ -66,7 +66,7 @@ export function StarMap({ date, lat, lon, timezone = 0, containerId = 'celestial
   // 实际使用的坐标（优先 GPS）
   const actualLat = gpsLocation?.lat ?? lat;
   const actualLon = gpsLocation?.lon ?? lon;
-  const USE_REMOTE_SETTINGS = false;
+  // 远端设置：目前禁用（未来如启用，请确保相关 useEffect 依赖同步调整）
   useEffect(() => {
     const originalAlert = window.alert;
     let retryHandle: number | null = null;
@@ -185,7 +185,8 @@ export function StarMap({ date, lat, lon, timezone = 0, containerId = 'celestial
       }
       const API_BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || '';
       try {
-        if (API_BASE && USE_REMOTE_SETTINGS) {
+        const useRemoteSettings = ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_USE_REMOTE_SETTINGS === '1');
+        if (API_BASE && useRemoteSettings) {
           if (settingsControllerRef.current) { try { settingsControllerRef.current.abort(); } catch { /* ignore */ } }
           settingsControllerRef.current = new AbortController();
           const r = await fetch(`${API_BASE}/api/settings/sky`, { method: 'GET', signal: settingsControllerRef.current.signal });
@@ -216,10 +217,27 @@ export function StarMap({ date, lat, lon, timezone = 0, containerId = 'celestial
       // 不再在每次 effect 执行时清空容器，避免在开发环境 StrictMode 下出现闪烁/消失
       // 仅在首次初始化时调用 display，其后只更新日期/位置
       const isIau = culture === 'iau';
-      const config = { ...configBase, culture, datapath: root, container: containerId, width: w, constellations: { ...configBase.constellations, show: isIau ? showConst : false, names: isIau ? showConst : false, lines: isIau ? showConst : false, boundaries: isIau ? showXiu : false, namesType: isIau ? 'name' : 'name' } } as unknown;
-      console.log('[StarMap] Celestial config:', { datapath: root, width: w, stars: (config as any).stars });
-      // @ts-ignore - 保留以备将来使用
-      const _drawCn = async (base: string) => {
+      const config = {
+        ...configBase,
+        culture,
+        datapath: root,
+        container: containerId,
+        width: w,
+        constellations: {
+          ...configBase.constellations,
+          show: isIau ? showConst : false,
+          names: isIau ? showConst : false,
+          lines: isIau ? showConst : false,
+          boundaries: isIau ? showXiu : false,
+          namesType: 'name',
+        },
+      } as unknown as Record<string, unknown>;
+      console.log('[StarMap] Celestial config:', { datapath: root, width: w, stars: config.stars });
+
+      // 这些绘制器目前默认不启用；保留以备将来需要时开启
+      const ENABLE_EXPERIMENTAL_LAYERS = false;
+
+      const drawCn = async (base: string) => {
         try {
           const [pts, lines, bounds] = await Promise.all([
             fetch(`${base}constellations.cn.json`).then(r => r.ok ? r.json() : null),
@@ -237,8 +255,7 @@ export function StarMap({ date, lat, lon, timezone = 0, containerId = 'celestial
           }
         } catch { void 0; }
       };
-      // @ts-ignore - 保留以备将来使用
-      const _drawStars = async (base: string) => {
+      const drawStars = async (base: string) => {
         try {
           const stars = await fetch(`${base}stars.6.json`).then(r => r.ok ? r.json() : null);
           if (stars && window.Celestial && typeof window.Celestial.add === 'function') {
@@ -258,14 +275,19 @@ export function StarMap({ date, lat, lon, timezone = 0, containerId = 'celestial
           }
         });
       };
-      // @ts-ignore - 保留以备将来使用
-      const _drawHjStars = async (base: string) => {
+
+      type HjFeature = {
+        properties?: { hip?: number | string; mag?: number; name_hj?: string; name_cn?: string };
+        geometry?: { type?: string; coordinates?: unknown };
+      };
+
+      const drawHjStars = async (base: string) => {
         try {
           const hj = await fetch(`${base}cultures/huangji-stars.json`).then(r => r.ok ? r.json() : null);
           if (!hj || !window.Celestial || typeof window.Celestial.add !== 'function') return;
           
           // hip fallback: fill missing coordinates using stars.6.json
-          let resolved = hj;
+          let resolved: unknown = hj;
           try {
             const stars = await fetch(`${base}stars.6.json`).then(r => r.ok ? r.json() : null);
             const map = new Map<number, [number, number]>();
@@ -277,12 +299,19 @@ export function StarMap({ date, lat, lon, timezone = 0, containerId = 'celestial
               }
             }
             if (Array.isArray(hj.features)) {
-              const feats = (hj.features as Array<any>).map(feat => {
-                const hip = typeof feat.properties?.hip === 'number' ? feat.properties.hip : Number(feat.properties?.hip);
+              const feats = (hj.features as unknown[]).map((featUnknown) => {
+                const feat = featUnknown as HjFeature;
+                const hipRaw = feat.properties?.hip;
+                const hip = typeof hipRaw === 'number' ? hipRaw : Number(hipRaw);
                 const coords = feat.geometry?.coordinates;
-                if ((!Array.isArray(coords) || coords.length !== 2 || coords.some(n => typeof n !== 'number')) && Number.isFinite(hip) && map.has(hip)) {
+                const coordsOk =
+                  Array.isArray(coords) &&
+                  coords.length === 2 &&
+                  typeof coords[0] === 'number' &&
+                  typeof coords[1] === 'number';
+                if (!coordsOk && Number.isFinite(hip) && map.has(hip)) {
                   feat.geometry = feat.geometry || { type: 'Point', coordinates: [0, 0] };
-                  feat.geometry.coordinates = map.get(hip)!;
+                  (feat.geometry as { coordinates?: unknown }).coordinates = map.get(hip)!;
                 }
                 return feat;
               });
@@ -397,8 +426,7 @@ export function StarMap({ date, lat, lon, timezone = 0, containerId = 'celestial
           }, 1500);
         } catch { void 0; }
       };
-      // @ts-ignore - 保留以备将来使用
-      const _drawXiuPrincipal = async () => {
+      const drawXiuPrincipal = async () => {
         if (!window.Celestial || typeof window.Celestial.add !== 'function') return;
         const eps = 23.439281 * Math.PI / 180;
         const mansions: Array<{ key: string; name: string; idx: number }> = [
@@ -520,6 +548,15 @@ export function StarMap({ date, lat, lon, timezone = 0, containerId = 'celestial
           }
         }, 1500);
       };
+
+      // 占位引用：避免 eslint no-unused-vars（默认不启用，不改变运行逻辑）
+      if (ENABLE_EXPERIMENTAL_LAYERS) {
+        void drawCn;
+        void drawStars;
+        void drawHjStars;
+        void drawXiuPrincipal;
+        void markHjGroups;
+      }
       // 使用 Celestial 的投影函数将赤经赤纬转换为 SVG 坐标
       const projectCoords = (ra: number, dec: number, svg: SVGSVGElement): [number, number] | null => {
         // 尝试使用 Celestial 的投影函数
@@ -1038,17 +1075,17 @@ export function StarMap({ date, lat, lon, timezone = 0, containerId = 'celestial
       <div id={containerId} style={{ minHeight: 300 }}></div>
       <div style={{ position: 'absolute', right: 8, top: 8, display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.4)', padding: '6px 8px', borderRadius: 6 }}>
         <label style={{ color: '#f6e58d', fontSize: 11, display: 'flex', alignItems: 'center', height: 26 }}>
-          <input type="checkbox" checked={showConst} onChange={e => { const v = e.target.checked; setShowConst(v); const API_BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || ''; const USE_REMOTE_SETTINGS = false; if (API_BASE && USE_REMOTE_SETTINGS) { try { void fetch(`${API_BASE}/api/settings/sky`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ show_const: v, show_xiu: showXiu, zh_planet_names: renameZh, culture }), keepalive: true }); } catch { void 0; } } }} /> 星官
+          <input type="checkbox" checked={showConst} onChange={e => { const v = e.target.checked; setShowConst(v); const API_BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || ''; const useRemoteSettings = ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_USE_REMOTE_SETTINGS === '1'); if (API_BASE && useRemoteSettings) { try { void fetch(`${API_BASE}/api/settings/sky`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ show_const: v, show_xiu: showXiu, zh_planet_names: renameZh, culture }), keepalive: true }); } catch { void 0; } } }} /> 星官
         </label>
         <label style={{ color: '#f6e58d', fontSize: 11, display: 'flex', alignItems: 'center', height: 26 }}>
-          <input type="checkbox" checked={showXiu} onChange={e => { const v = e.target.checked; setShowXiu(v); const API_BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || ''; const USE_REMOTE_SETTINGS = false; if (API_BASE && USE_REMOTE_SETTINGS) { try { void fetch(`${API_BASE}/api/settings/sky`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ show_const: showConst, show_xiu: v, zh_planet_names: renameZh, culture }), keepalive: true }); } catch { void 0; } } }} /> 二十八宿
+          <input type="checkbox" checked={showXiu} onChange={e => { const v = e.target.checked; setShowXiu(v); const API_BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || ''; const useRemoteSettings = ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_USE_REMOTE_SETTINGS === '1'); if (API_BASE && useRemoteSettings) { try { void fetch(`${API_BASE}/api/settings/sky`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ show_const: showConst, show_xiu: v, zh_planet_names: renameZh, culture }), keepalive: true }); } catch { void 0; } } }} /> 二十八宿
         </label>
         <label style={{ color: '#f6e58d', fontSize: 11, display: 'flex', alignItems: 'center', height: 26 }}>
-          <input type="checkbox" checked={renameZh} onChange={e => { const v = e.target.checked; setRenameZh(v); const API_BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || ''; const USE_REMOTE_SETTINGS = false; if (API_BASE && USE_REMOTE_SETTINGS) { try { void fetch(`${API_BASE}/api/settings/sky`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ show_const: showConst, show_xiu: showXiu, zh_planet_names: v, culture }), keepalive: true }); } catch { void 0; } } }} /> 行星中文
+          <input type="checkbox" checked={renameZh} onChange={e => { const v = e.target.checked; setRenameZh(v); const API_BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || ''; const useRemoteSettings = ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_USE_REMOTE_SETTINGS === '1'); if (API_BASE && useRemoteSettings) { try { void fetch(`${API_BASE}/api/settings/sky`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ show_const: showConst, show_xiu: showXiu, zh_planet_names: v, culture }), keepalive: true }); } catch { void 0; } } }} /> 行星中文
         </label>
         <label style={{ color: '#f6e58d', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
           文化
-          <select value={culture} onChange={e => { const v = e.target.value as ('cn'|'hj'|'iau'); setCulture(v); const API_BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || ''; const USE_REMOTE_SETTINGS = false; if (API_BASE && USE_REMOTE_SETTINGS) { try { void fetch(`${API_BASE}/api/settings/sky`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ show_const: showConst, show_xiu: showXiu, zh_planet_names: renameZh, culture: v }), keepalive: true }); } catch { void 0; } } }} style={{ background: 'transparent', color: '#f6e58d', border: '1px solid #f6e58d', borderRadius: 4, fontSize: 11, height: 26 }}>
+          <select value={culture} onChange={e => { const v = e.target.value as ('cn'|'hj'|'iau'); setCulture(v); const API_BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || ''; const useRemoteSettings = ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_USE_REMOTE_SETTINGS === '1'); if (API_BASE && useRemoteSettings) { try { void fetch(`${API_BASE}/api/settings/sky`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ show_const: showConst, show_xiu: showXiu, zh_planet_names: renameZh, culture: v }), keepalive: true }); } catch { void 0; } } }} style={{ background: 'transparent', color: '#f6e58d', border: '1px solid #f6e58d', borderRadius: 4, fontSize: 11, height: 26 }}>
             <option value="cn">中国</option>
             <option value="hj">皇极</option>
             <option value="iau">IAU</option>

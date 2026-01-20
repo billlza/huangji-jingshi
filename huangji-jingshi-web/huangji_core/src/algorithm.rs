@@ -145,10 +145,6 @@ struct Hexagram {
 }
 
 impl Hexagram {
-    fn new(upper: u8, lower: u8) -> Self {
-        Self { upper, lower }
-    }
-    
     fn from_name(name: &str) -> Self {
         let (u, l) = get_hexagram_struct(name);
         Self { upper: u, lower: l }
@@ -298,7 +294,7 @@ pub fn get_hj_info(hj_year: i32) -> HuangjiInfo {
     };
     
     // 6. 年卦
-    let mut val_seq: Vec<String> = FUXI_SEQ.iter()
+    let val_seq: Vec<String> = FUXI_SEQ.iter()
         .filter(|&&n| !SKIP_ZHE.contains(&n))
         .map(|&s| s.to_string())
         .collect();
@@ -535,9 +531,9 @@ mod tests {
     #[test]
     fn test_bce_continuity() {
         // BCE 连续性测试
-        let info_bc2 = get_hj_info(-2);
-        let info_bc1 = get_hj_info(-1);
-        let info_ad1 = get_hj_info(1);
+        let _info_bc2 = get_hj_info(-2);
+        let _info_bc1 = get_hj_info(-1);
+        let _info_ad1 = get_hj_info(1);
         
         // 确保索引连续递增
         let acc_bc2 = year_to_acc(-2).unwrap();
