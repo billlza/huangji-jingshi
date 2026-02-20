@@ -3,28 +3,28 @@
 /**
  * Supabase Storage Bucket 配置脚本
  * 自动创建 avatars bucket 并设置权限
- * 
+ *
  * 使用方法：
  * 1. 设置环境变量：
  *    export SUPABASE_URL="your-project-url"
  *    export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
- * 
+ *
  * 2. 运行脚本：
  *    node setup-storage.js
  */
 
 // 尝试从 .env 文件读取（如果存在）
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-let envVars = {};
+const envVars = {};
 try {
   const envFile = readFileSync(join(__dirname, '.env'), 'utf-8');
-  envFile.split('\n').forEach(line => {
+  envFile.split('\n').forEach((line) => {
     const trimmed = line.trim();
     if (trimmed && !trimmed.startsWith('#')) {
       const match = trimmed.match(/^([^=]+)=(.*)$/);
@@ -35,12 +35,17 @@ try {
       }
     }
   });
-} catch (e) {
+} catch {
   // .env 文件不存在，使用环境变量
 }
 
-const SUPABASE_URL = process.env.SUPABASE_URL || envVars.SUPABASE_URL || process.env.VITE_SUPABASE_URL || envVars.VITE_SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || envVars.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL =
+  process.env.SUPABASE_URL ||
+  envVars.SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
+  envVars.VITE_SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || envVars.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error('❌ 错误：缺少必要的环境变量');
@@ -63,8 +68,8 @@ async function createBucket() {
     const listResponse = await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
       method: 'GET',
       headers: {
-        'apikey': SUPABASE_SERVICE_ROLE_KEY,
-        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
       },
     });
 
@@ -73,27 +78,27 @@ async function createBucket() {
     }
 
     const buckets = await listResponse.json();
-    const existingBucket = buckets.find(b => b.name === 'avatars');
+    const existingBucket = buckets.find((b) => b.name === 'avatars');
 
     if (existingBucket) {
       console.log('✅ avatars bucket 已存在');
       console.log('   名称:', existingBucket.name);
       console.log('   公开:', existingBucket.public ? '是' : '否');
       console.log('   创建时间:', new Date(existingBucket.created_at).toLocaleString('zh-CN'));
-      
+
       if (!existingBucket.public) {
         console.log('\n⚠️  bucket 不是公开的，正在更新...');
         const updateResponse = await fetch(`${SUPABASE_URL}/storage/v1/bucket/avatars`, {
           method: 'PUT',
           headers: {
-            'apikey': SUPABASE_SERVICE_ROLE_KEY,
-            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             public: true,
             file_size_limit: 5242880, // 5MB
-            allowed_mime_types: ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+            allowed_mime_types: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
           }),
         });
 
@@ -110,15 +115,15 @@ async function createBucket() {
       const createResponse = await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
         method: 'POST',
         headers: {
-          'apikey': SUPABASE_SERVICE_ROLE_KEY,
-          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           name: 'avatars',
           public: true,
           file_size_limit: 5242880, // 5MB
-          allowed_mime_types: ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+          allowed_mime_types: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
         }),
       });
 
@@ -161,7 +166,6 @@ FOR DELETE USING (
 );
     `);
     console.log('\n✨ 配置完成后，头像功能即可正常使用！\n');
-
   } catch (error) {
     console.error('\n❌ 配置失败:', error.message);
     console.log('\n💡 如果遇到权限错误，请确保：');

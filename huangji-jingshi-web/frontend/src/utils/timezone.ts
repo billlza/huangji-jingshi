@@ -1,5 +1,5 @@
-import tzLookup from 'tz-lookup';
 import { DateTime } from 'luxon';
+import tzLookup from 'tz-lookup';
 
 export type TimezoneResult = {
   offsetHours: number;
@@ -18,9 +18,14 @@ export function computeLocalOffset(date: Date, lat: number, lon: number): Timezo
   }
 }
 
-async function fetchRemoteOffset(date: Date, lat: number, lon: number): Promise<TimezoneResult | null> {
+async function fetchRemoteOffset(
+  date: Date,
+  lat: number,
+  lon: number,
+): Promise<TimezoneResult | null> {
   try {
-    const base = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || '';
+    const base =
+      (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || '';
     const q = new URLSearchParams({
       datetime: date.toISOString(),
       lat: String(lat),
@@ -29,7 +34,8 @@ async function fetchRemoteOffset(date: Date, lat: number, lon: number): Promise<
     const resp = await fetch(`${base}/api/timezone?${q.toString()}`);
     if (!resp.ok) return null;
     const json = await resp.json();
-    const offsetSeconds = typeof json.gmtOffset === 'number' ? json.gmtOffset : (json.offset_seconds ?? 0);
+    const offsetSeconds =
+      typeof json.gmtOffset === 'number' ? json.gmtOffset : (json.offset_seconds ?? 0);
     const zoneName = json.zoneName ?? json.zone_name ?? null;
     if (typeof offsetSeconds !== 'number') return null;
     return { offsetHours: offsetSeconds / 3600, zoneName, source: 'remote' };
@@ -38,7 +44,12 @@ async function fetchRemoteOffset(date: Date, lat: number, lon: number): Promise<
   }
 }
 
-export async function resolveTimezoneOffset(date: Date, lat: number, lon: number, preferRemote = false): Promise<TimezoneResult> {
+export async function resolveTimezoneOffset(
+  date: Date,
+  lat: number,
+  lon: number,
+  preferRemote = false,
+): Promise<TimezoneResult> {
   if (preferRemote) {
     const remote = await fetchRemoteOffset(date, lat, lon);
     if (remote) return remote;

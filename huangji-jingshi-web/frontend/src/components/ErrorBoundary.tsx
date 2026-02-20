@@ -1,5 +1,5 @@
-import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
+import { Component } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -29,7 +29,9 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="min-h-screen flex items-center justify-center bg-[#050508] text-white p-6">
           <div className="max-w-md w-full bg-white/5 border border-red-500/30 rounded-2xl p-8 backdrop-blur-xl">
-            <h2 className="text-xl font-serif text-red-400 mb-4 tracking-widest">系统错误 (System Error)</h2>
+            <h2 className="text-xl font-serif text-red-400 mb-4 tracking-widest">
+              系统错误 (System Error)
+            </h2>
             <p className="text-gray-400 text-sm mb-6">应用遇到意外错误，无法继续运行。</p>
             <div className="bg-black/30 p-4 rounded-lg border border-white/5 mb-6 overflow-auto max-h-40">
               <code className="text-xs text-red-300 font-mono break-all">
@@ -50,4 +52,3 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
-

@@ -1,12 +1,11 @@
-
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Home from './pages/Home';
-import Tools from './pages/Tools';
-import Story from './pages/Story';
-import Login from './pages/Login';
-import About from './pages/About';
-import Settings from './pages/Settings';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import UserAuth from './components/UserAuth';
+import About from './pages/About';
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Settings from './pages/Settings';
+import Story from './pages/Story';
+import Tools from './pages/Tools';
 import './index.css';
 
 function App() {
@@ -22,7 +21,7 @@ function App() {
         <Route path="/settings" element={<Settings />} />
       </Routes>
     </BrowserRouter>
-  )
+  );
 }
 
 export default App;

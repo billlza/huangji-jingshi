@@ -3,10 +3,10 @@
  * 整合 BaziForm 和 BaziChartView
  */
 
-import { useState } from 'react';
-import BaziForm, { type BaziParams } from './BaziForm';
-import BaziChartView, { type BaziResult } from './BaziChartView';
 import { Sparkles } from 'lucide-react';
+import { useState } from 'react';
+import BaziChartView, { type BaziResult } from './BaziChartView';
+import BaziForm, { type BaziParams } from './BaziForm';
 
 interface BaziCardProps {
   // 从父组件传入的观测时间参数
@@ -26,7 +26,7 @@ export default function BaziCard({ observeParams }: BaziCardProps) {
   const handleSubmit = async (params: BaziParams) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // tzOffsetMinutes: 时区偏移（分钟），东为正 UTC+8=+480, 西为负 UTC-5=-300
       // 注意：与 JS Date.getTimezoneOffset() 符号相反！不要直接使用 getTimezoneOffset() 赋值
@@ -36,16 +36,16 @@ export default function BaziCard({ observeParams }: BaziCardProps) {
         tzOffsetMinutes: params.tzOffsetMinutes.toString(),
         lat: params.lat.toString(),
         lon: params.lon.toString(),
-        gender: params.gender
+        gender: params.gender,
       });
-      
+
       const res = await fetch(`${API_BASE}/api/bazi?${q}`);
-      
+
       if (!res.ok) {
         const errText = await res.text();
         throw new Error(errText || '排盘失败');
       }
-      
+
       const data = await res.json();
       setResult(data);
     } catch (err) {
@@ -76,32 +76,26 @@ export default function BaziCard({ observeParams }: BaziCardProps) {
         </div>
         <div>
           <h3 className="text-sm font-bold text-white">人生命盘</h3>
-          <p className="text-[10px] text-gray-500 uppercase tracking-widest">Birth Chart · 八字排盘</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-widest">
+            Birth Chart · 八字排盘
+          </p>
         </div>
       </div>
 
       {/* 内容区域 */}
       <div className="p-6 space-y-6">
         {/* 输入表单 */}
-        <BaziForm
-          observeParams={observeParams}
-          onSubmit={handleSubmit}
-          isLoading={loading}
-        />
-        
+        <BaziForm observeParams={observeParams} onSubmit={handleSubmit} isLoading={loading} />
+
         {error && (
           <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs">
             {error}
           </div>
         )}
-        
+
         {/* 四柱结果 */}
-        <BaziChartView
-          data={result}
-          isLoading={loading}
-        />
+        <BaziChartView data={result} isLoading={loading} />
       </div>
     </div>
   );
 }
-

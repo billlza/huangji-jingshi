@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface ControlPanelProps {
   initialParams: {
@@ -60,7 +59,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
   const [lat, setLat] = useState(initialParams.lat.toString());
   const [lon, setLon] = useState(initialParams.lon.toString());
   const [error, setError] = useState<string | null>(null);
-  const [locationStatus, setLocationStatus] = useState<string>("");
+  const [locationStatus, setLocationStatus] = useState<string>('');
 
   // Helper retained above
 
@@ -73,30 +72,65 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
     return () => clearInterval(timer);
   }, [isLive]);
 
-  // Initialize local state from props only on first mount if needed, 
-  // but actually we want to default to live mode, so we might just ignore initialParams.datetime 
-  // if we want strict "live by default". 
+  // Initialize local state from props only on first mount if needed,
+  // but actually we want to default to live mode, so we might just ignore initialParams.datetime
+  // if we want strict "live by default".
   // However, if user refreshes with a specific URL param, we should probably respect that and turn off live mode?
   // Let's decide: If initialParams.datetime is significantly different from now, assume locked.
   // Preloaded from props in initial state above; no effect needed
 
   // IP 定位回退
-  const getLocationByIP = async (): Promise<{ lat: number; lon: number; source: string } | null> => {
+  const getLocationByIP = async (): Promise<{
+    lat: number;
+    lon: number;
+    source: string;
+  } | null> => {
+    const hasValidCoord = (value: unknown): value is number =>
+      typeof value === 'number' && Number.isFinite(value);
     const apis = [
-      { url: 'https://ipapi.co/json/', parse: (d: { latitude?: number; longitude?: number }) => d.latitude && d.longitude ? { lat: d.latitude, lon: d.longitude } : null },
-      { url: 'https://ip-api.com/json/?fields=lat,lon', parse: (d: { lat?: number; lon?: number }) => d.lat && d.lon ? { lat: d.lat, lon: d.lon } : null },
-      { url: 'https://ipwho.is/', parse: (d: { latitude?: number; longitude?: number }) => d.latitude && d.longitude ? { lat: d.latitude, lon: d.longitude } : null },
+      {
+        url: 'https://ipapi.co/json/',
+        parse: (d: { latitude?: number; longitude?: number }) =>
+          hasValidCoord(d.latitude) && hasValidCoord(d.longitude)
+            ? { lat: d.latitude, lon: d.longitude }
+            : null,
+      },
+      {
+        url: 'https://ip-api.com/json/?fields=lat,lon',
+        parse: (d: { lat?: number; lon?: number }) =>
+          hasValidCoord(d.lat) && hasValidCoord(d.lon) ? { lat: d.lat, lon: d.lon } : null,
+      },
+      {
+        url: 'https://ipwho.is/',
+        parse: (d: { latitude?: number; longitude?: number }) =>
+          hasValidCoord(d.latitude) && hasValidCoord(d.longitude)
+            ? { lat: d.latitude, lon: d.longitude }
+            : null,
+      },
     ];
-    for (const api of apis) {
+
+    const locationTasks = apis.map(async (api) => {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 5000);
       try {
-        const resp = await fetch(api.url, { timeout: 5000 } as RequestInit);
-        if (resp.ok) {
-          const data = await resp.json();
-          const loc = api.parse(data);
-          if (loc) return { ...loc, source: 'IP' };
-        }
-      } catch { /* 继续尝试下一个 */ }
+        const resp = await fetch(api.url, { signal: controller.signal });
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        return api.parse(data);
+      } catch {
+        return null;
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    });
+
+    const results = await Promise.allSettled(locationTasks);
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value) {
+        return { ...result.value, source: 'IP' };
+      }
     }
+
     return null;
   };
 
@@ -105,20 +139,20 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
     setLat(newLat.toFixed(4));
     setLon(newLon.toFixed(4));
     setLocationStatus(`${source}已锁定`);
-    
+
     // P1 修复：使用显式时区转换
     onCalculate({
       datetime: localToUtcIso(localDatetime),
       lat: newLat,
-      lon: newLon
+      lon: newLon,
     });
-    
-    setTimeout(() => setLocationStatus(""), 5000);
+
+    setTimeout(() => setLocationStatus(''), 5000);
   };
 
   const handleGeolocation = async () => {
-    setLocationStatus("GPS定位中...");
-    
+    setLocationStatus('GPS定位中...');
+
     // 首先尝试 GPS/BDS 定位
     if (navigator.geolocation) {
       const gpsPromise = new Promise<{ lat: number; lon: number } | null>((resolve) => {
@@ -129,7 +163,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
           () => {
             resolve(null); // GPS 失败，返回 null
           },
-          { timeout: 8000, enableHighAccuracy: true, maximumAge: 60000 }
+          { timeout: 8000, enableHighAccuracy: true, maximumAge: 60000 },
         );
       });
 
@@ -141,7 +175,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
     }
 
     // GPS 失败，尝试 IP 定位
-    setLocationStatus("IP定位中...");
+    setLocationStatus('IP定位中...');
     const ipResult = await getLocationByIP();
     if (ipResult) {
       updateLocationAndSync(ipResult.lat, ipResult.lon, 'IP');
@@ -149,18 +183,17 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
     }
 
     // 两种方式都失败
-    setLocationStatus("定位失败");
-    setTimeout(() => setLocationStatus(""), 3000);
+    setLocationStatus('定位失败');
+    setTimeout(() => setLocationStatus(''), 3000);
   };
-  
-  // 页面加载时自动尝试定位
+
+  // 页面加载时自动尝试定位（仅首次挂载）
   useEffect(() => {
     // 延迟自动定位，避免阻塞页面加载
     const timer = setTimeout(() => {
       handleGeolocation();
     }, 1000);
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSubmit = () => {
@@ -169,11 +202,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
     const lonNum = parseFloat(lon);
 
     if (isNaN(latNum) || latNum < -90 || latNum > 90) {
-      setError("纬度必须在 -90 到 90 之间");
+      setError('纬度必须在 -90 到 90 之间');
       return;
     }
     if (isNaN(lonNum) || lonNum < -180 || lonNum > 180) {
-      setError("经度必须在 -180 到 180 之间");
+      setError('经度必须在 -180 到 180 之间');
       return;
     }
 
@@ -183,7 +216,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
     onCalculate({
       datetime: localToUtcIso(localDatetime),
       lat: latNum,
-      lon: lonNum
+      lon: lonNum,
     });
   };
 
@@ -219,17 +252,21 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
       {/* Time Input */}
       <div className="space-y-3">
         <div className="flex justify-between items-center">
-           <label className="block text-xs text-gold/70 uppercase tracking-widest">
-             观测时间 <span className="text-gray-600 normal-case ml-1">({offsetString})</span>
-             {isLive && <span className="ml-2 text-green-400 animate-pulse text-[10px] border border-green-500/30 px-1.5 py-0.5 rounded-full bg-green-500/10">● LIVE</span>}
-           </label>
-           <button 
-             onClick={handleSetNow}
-             className={`text-[10px] transition-colors ${isLive ? 'text-gray-600 cursor-default' : 'text-gold/80 hover:text-gold underline decoration-dotted'}`}
-             disabled={isLive}
-           >
-             设为现在
-           </button>
+          <label className="block text-xs text-gold/70 uppercase tracking-widest">
+            观测时间 <span className="text-gray-600 normal-case ml-1">({offsetString})</span>
+            {isLive && (
+              <span className="ml-2 text-green-400 animate-pulse text-[10px] border border-green-500/30 px-1.5 py-0.5 rounded-full bg-green-500/10">
+                ● LIVE
+              </span>
+            )}
+          </label>
+          <button
+            onClick={handleSetNow}
+            className={`text-[10px] transition-colors ${isLive ? 'text-gray-600 cursor-default' : 'text-gold/80 hover:text-gold underline decoration-dotted'}`}
+            disabled={isLive}
+          >
+            设为现在
+          </button>
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -256,23 +293,50 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
       <div className="space-y-3 pt-2 border-t border-white/10">
         <div className="flex justify-between items-center">
           <label className="block text-xs text-gold/70 uppercase tracking-widest">观测地点</label>
-          <button 
+          <button
             onClick={handleGeolocation}
             disabled={locationStatus.includes('定位中')}
             className={`text-[10px] flex items-center gap-1 transition-colors px-2 py-1 rounded border ${
-              locationStatus.includes('已锁定') 
-                ? 'text-green-400 bg-green-950/30 border-green-500/30' 
+              locationStatus.includes('已锁定')
+                ? 'text-green-400 bg-green-950/30 border-green-500/30'
                 : locationStatus.includes('失败')
-                ? 'text-red-400 bg-red-950/30 border-red-500/30 hover:border-red-400/50'
-                : 'text-cyan-400 hover:text-cyan-300 bg-cyan-950/30 border-cyan-500/30 hover:border-cyan-400/50'
+                  ? 'text-red-400 bg-red-950/30 border-red-500/30 hover:border-red-400/50'
+                  : 'text-cyan-400 hover:text-cyan-300 bg-cyan-950/30 border-cyan-500/30 hover:border-cyan-400/50'
             } disabled:opacity-50`}
           >
             {locationStatus.includes('定位中') ? (
-              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
             ) : (
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
             )}
-            {locationStatus || "获取当前位置"}
+            {locationStatus || '获取当前位置'}
           </button>
         </div>
         <div className="grid grid-cols-2 gap-4">

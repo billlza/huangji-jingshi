@@ -3,9 +3,9 @@
  * 可以跟随"天机演算"的观测时间，或手动输入
  */
 
-import { useState, useEffect } from 'react';
-import { Calendar, MapPin, User, Link2, Link2Off, Globe, LocateFixed, Loader2 } from 'lucide-react';
-import { reverseGeocode, getIPLocation, geocode } from '../utils/geolocation';
+import { Calendar, Globe, Link2, Link2Off, Loader2, LocateFixed, MapPin, User } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { geocode, getIPLocation, reverseGeocode } from '../utils/geolocation';
 import { convertLocalToUTC, getTimezoneOffsetMinutes } from '../utils/timezoneConvert';
 
 interface BaziFormProps {
@@ -20,8 +20,8 @@ interface BaziFormProps {
 }
 
 export interface BaziParams {
-  datetime: string;  // ISO8601 UTC 时间
-  timezone: string;  // e.g., "Asia/Shanghai" or "+08:00"
+  datetime: string; // ISO8601 UTC 时间
+  timezone: string; // e.g., "Asia/Shanghai" or "+08:00"
   // tzOffsetMinutes: 时区偏移（分钟），东为正 UTC+8=+480, 西为负 UTC-5=-300
   // 注意：与 JS Date.getTimezoneOffset() 符号相反！不要直接使用 getTimezoneOffset() 赋值
   tzOffsetMinutes: number;
@@ -46,7 +46,7 @@ const TIMEZONE_OPTIONS = [
 export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFormProps) {
   // 是否跟随上方的观测时间
   const [followObserve, setFollowObserve] = useState(true);
-  
+
   // 本地状态
   const [localDatetime, setLocalDatetime] = useState('');
   const [timezone, setTimezone] = useState('Asia/Shanghai');
@@ -54,7 +54,7 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
   const [lon, setLon] = useState<number | ''>('');
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('male');
   const [locationName, setLocationName] = useState('');
-  
+
   // 定位状态
   const [locating, setLocating] = useState(false);
   const [locateError, setLocateError] = useState<string | null>(null);
@@ -67,11 +67,11 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
   const handleLocate = async () => {
     setLocating(true);
     setLocateError(null);
-    
+
     let latitude: number | null = null;
     let longitude: number | null = null;
     let source = '';
-    
+
     // 方法1: 尝试 GPS/BDS 定位
     if ('geolocation' in navigator) {
       try {
@@ -79,30 +79,30 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
           navigator.geolocation.getCurrentPosition(resolve, reject, {
             enableHighAccuracy: true,
             timeout: 10000,
-            maximumAge: 0
+            maximumAge: 0,
           });
         });
-        
+
         latitude = Number(position.coords.latitude.toFixed(4));
         longitude = Number(position.coords.longitude.toFixed(4));
         source = 'GPS';
-        
+
         console.log('✅ GPS定位成功:', latitude, longitude);
       } catch (gpsError) {
         console.log('❌ GPS定位失败，尝试IP定位...', gpsError);
       }
     }
-    
+
     // 方法2: 如果GPS失败，尝试 IP 定位（智能路由）
     if (latitude === null || longitude === null) {
       try {
         const location = await getIPLocation();
-        
+
         if (location) {
           latitude = Number(location.latitude.toFixed(4));
           longitude = Number(location.longitude.toFixed(4));
           source = 'IP';
-          
+
           // IP定位直接返回城市名
           setLat(latitude);
           setLon(longitude);
@@ -114,25 +114,25 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
         console.log('❌ IP定位失败', ipError);
       }
     }
-    
+
     // 如果获取到了坐标（GPS或IP）
     if (latitude !== null && longitude !== null) {
       setLat(latitude);
       setLon(longitude);
-      
+
       // 进行逆地理编码获取地名（智能路由）
-      const locationName = await reverseGeocode(latitude, longitude);
-      if (locationName) {
-        setLocationName(locationName);
+      const resolvedLocationName = await reverseGeocode(latitude, longitude);
+      if (resolvedLocationName) {
+        setLocationName(resolvedLocationName);
       } else {
         // 如果逆地理编码失败，显示来源标识
         setLocationName(source === 'GPS' ? 'GPS定位' : 'IP定位');
       }
-      
+
       setLocating(false);
       return;
     }
-    
+
     // 都失败了
     setLocateError('定位失败，请手动输入经纬度');
     setLocating(false);
@@ -157,12 +157,12 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // 获取时区偏移（分钟）
     // tzOffsetMinutes: 东为正 UTC+8=+480, 西为负 UTC-5=-300
     // 注意：不要使用 getTimezoneOffset() 直接赋值（符号相反）
     const tzOffsetMinutes = getTimezoneOffsetMinutes(timezone);
-    
+
     let dt: string;
     if (followObserve) {
       dt = observeParams.datetime;
@@ -171,14 +171,14 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
       // 显式使用 tzOffsetMinutes，不依赖浏览器时区
       dt = convertLocalToUTC(localDatetime, tzOffsetMinutes);
     }
-    
+
     onSubmit({
       datetime: dt,
       timezone,
       tzOffsetMinutes,
-      lat: followObserve ? observeParams.lat : (lat || 39.9042),  // 默认北京
-      lon: followObserve ? observeParams.lon : (lon || 116.4074),
-      gender
+      lat: followObserve ? observeParams.lat : lat || 39.9042, // 默认北京
+      lon: followObserve ? observeParams.lon : lon || 116.4074,
+      gender,
     });
   };
 
@@ -221,9 +221,10 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
           onChange={(e) => setLocalDatetime(e.target.value)}
           disabled={followObserve}
           className={`w-full px-4 py-3 rounded-xl text-sm transition-all
-            ${followObserve 
-              ? 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5' 
-              : 'bg-black/40 text-white border border-white/10 focus:border-cyan-500/50 focus:outline-none'
+            ${
+              followObserve
+                ? 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5'
+                : 'bg-black/40 text-white border border-white/10 focus:border-cyan-500/50 focus:outline-none'
             }`}
         />
       </div>
@@ -239,8 +240,10 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
           onChange={(e) => setTimezone(e.target.value)}
           className="w-full px-4 py-3 rounded-xl bg-black/40 text-white text-sm border border-white/10 focus:border-cyan-500/50 focus:outline-none appearance-none cursor-pointer"
         >
-          {TIMEZONE_OPTIONS.map(tz => (
-            <option key={tz.value} value={tz.value}>{tz.label}</option>
+          {TIMEZONE_OPTIONS.map((tz) => (
+            <option key={tz.value} value={tz.value}>
+              {tz.label}
+            </option>
           ))}
         </select>
       </div>
@@ -277,7 +280,7 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
             </button>
           )}
         </div>
-        
+
         {/* 地名输入 */}
         <div className="relative">
           <input
@@ -288,10 +291,13 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
               // 当输入框失去焦点且地址不为空时，自动进行地理编码
               // 检查是否点击的是模态框或其他元素，避免误触发
               const relatedTarget = (e.nativeEvent as FocusEvent).relatedTarget;
-              if (relatedTarget && (relatedTarget as HTMLElement).closest('[role="dialog"], .modal, [data-modal]')) {
+              if (
+                relatedTarget &&
+                (relatedTarget as HTMLElement).closest('[role="dialog"], .modal, [data-modal]')
+              ) {
                 return; // 如果焦点转移到模态框，不触发地理编码
               }
-              
+
               if (!followObserve && locationName.trim() && locationName.trim().length > 2) {
                 setGeocoding(true);
                 setLocateError(null);
@@ -317,7 +323,12 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
             }}
             onKeyDown={(e) => {
               // 按回车键时也进行地理编码
-              if (e.key === 'Enter' && !followObserve && locationName.trim() && locationName.trim().length > 2) {
+              if (
+                e.key === 'Enter' &&
+                !followObserve &&
+                locationName.trim() &&
+                locationName.trim().length > 2
+              ) {
                 e.preventDefault();
                 (e.target as HTMLInputElement).blur();
               }
@@ -325,9 +336,10 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
             placeholder={followObserve ? '跟随观测地点' : '输入地名，如：浙江省杭州市西湖区'}
             disabled={followObserve}
             className={`w-full px-3 py-2.5 rounded-xl text-sm transition-all pr-10
-              ${followObserve 
-                ? 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5' 
-                : 'bg-black/40 text-white border border-white/10 focus:border-cyan-500/50 focus:outline-none'
+              ${
+                followObserve
+                  ? 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5'
+                  : 'bg-black/40 text-white border border-white/10 focus:border-cyan-500/50 focus:outline-none'
               }`}
           />
           {geocoding && !followObserve && (
@@ -336,7 +348,7 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
             </div>
           )}
         </div>
-        
+
         {/* 经纬度输入 */}
         <div className="grid grid-cols-2 gap-2">
           <div className="relative">
@@ -348,12 +360,15 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
               placeholder="纬度 Lat"
               disabled={followObserve}
               className={`w-full px-3 py-2.5 rounded-xl text-sm transition-all
-                ${followObserve 
-                  ? 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5' 
-                  : 'bg-black/40 text-white border border-white/10 focus:border-cyan-500/50 focus:outline-none'
+                ${
+                  followObserve
+                    ? 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5'
+                    : 'bg-black/40 text-white border border-white/10 focus:border-cyan-500/50 focus:outline-none'
                 }`}
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">纬度</span>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">
+              纬度
+            </span>
           </div>
           <div className="relative">
             <input
@@ -364,15 +379,18 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
               placeholder="经度 Lon"
               disabled={followObserve}
               className={`w-full px-3 py-2.5 rounded-xl text-sm transition-all
-                ${followObserve 
-                  ? 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5' 
-                  : 'bg-black/40 text-white border border-white/10 focus:border-cyan-500/50 focus:outline-none'
+                ${
+                  followObserve
+                    ? 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5'
+                    : 'bg-black/40 text-white border border-white/10 focus:border-cyan-500/50 focus:outline-none'
                 }`}
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">经度</span>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">
+              经度
+            </span>
           </div>
         </div>
-        
+
         {/* 定位错误提示 */}
         {locateError && !followObserve && (
           <div className="text-[10px] text-amber-400 flex items-center gap-1">
@@ -392,7 +410,7 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
             { value: 'male', label: '男', color: 'cyan' },
             { value: 'female', label: '女', color: 'pink' },
             { value: 'other', label: '其他', color: 'purple' },
-          ].map(opt => (
+          ].map((opt) => (
             <button
               key={opt.value}
               type="button"
@@ -402,8 +420,8 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
                   ? opt.value === 'male'
                     ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
                     : opt.value === 'female'
-                    ? 'bg-pink-500/20 border-pink-500/50 text-pink-300'
-                    : 'bg-purple-500/20 border-purple-500/50 text-purple-300'
+                      ? 'bg-pink-500/20 border-pink-500/50 text-pink-300'
+                      : 'bg-purple-500/20 border-purple-500/50 text-purple-300'
                   : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
               }`}
             >
@@ -418,9 +436,10 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
         type="submit"
         disabled={isLoading}
         className={`w-full py-4 rounded-2xl font-bold text-sm uppercase tracking-wider transition-all
-          ${isLoading
-            ? 'bg-white/10 text-gray-500 cursor-not-allowed'
-            : 'bg-gradient-to-r from-amber-600/80 via-yellow-500/80 to-amber-600/80 text-black hover:shadow-lg hover:shadow-amber-500/20'
+          ${
+            isLoading
+              ? 'bg-white/10 text-gray-500 cursor-not-allowed'
+              : 'bg-gradient-to-r from-amber-600/80 via-yellow-500/80 to-amber-600/80 text-black hover:shadow-lg hover:shadow-amber-500/20'
           }`}
       >
         {isLoading ? (
@@ -435,5 +454,3 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
     </form>
   );
 }
-
-

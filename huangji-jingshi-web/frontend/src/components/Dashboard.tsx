@@ -9,7 +9,8 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ info, currentYear, onJumpToYear }) => {
   const [nextLabels, setNextLabels] = useState<{ yun?: string; shi?: string; xun?: string }>();
-  const API_BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || '';
+  const API_BASE =
+    (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BACKEND_URL || '';
   useEffect(() => {
     const run = async () => {
       try {
@@ -27,7 +28,7 @@ const Dashboard: React.FC<DashboardProps> = ({ info, currentYear, onJumpToYear }
         setNextLabels({
           yun: `第${a.current.yun.index}运 ${a.current.yun.name}（${a.current.yun.start_year}–${a.current.yun.end_year}）`,
           shi: `第${b.current.shi.index}世 ${b.current.shi.name}（${b.current.shi.start_year}–${b.current.shi.end_year}）`,
-          xun: `第${c.current.xun.index}旬 ${c.current.xun.name}（${c.current.xun.start_year}–${c.current.xun.end_year}）`
+          xun: `第${c.current.xun.index}旬 ${c.current.xun.name}（${c.current.xun.start_year}–${c.current.xun.end_year}）`,
         });
       } catch {
         setNextLabels(undefined);
@@ -35,14 +36,16 @@ const Dashboard: React.FC<DashboardProps> = ({ info, currentYear, onJumpToYear }
     };
     run();
   }, [API_BASE, info.yun.end_year, info.shi.end_year, info.xun.end_year]);
-  
+
   const renderCountdown = (label: string, endYear: number, targetYear?: number, extra?: string) => {
     const yearsLeft = endYear - currentYear;
     return (
       <div className="flex justify-between items-center py-2 border-b border-white/5 last:border-0">
         <span className="text-xs text-gray-500">{label}</span>
         <div className="flex items-center gap-2 text-right">
-          <span className={`text-sm font-mono ${yearsLeft < 10 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
+          <span
+            className={`text-sm font-mono ${yearsLeft < 10 ? 'text-red-400 animate-pulse' : 'text-white'}`}
+          >
             {yearsLeft}
           </span>
           <span className="text-[10px] text-gray-600 ml-1">yrs</span>
@@ -55,9 +58,7 @@ const Dashboard: React.FC<DashboardProps> = ({ info, currentYear, onJumpToYear }
             </button>
           )}
         </div>
-        {extra && (
-          <div className="text-[10px] text-gray-500 mt-1 w-full text-right">→ {extra}</div>
-        )}
+        {extra && <div className="text-[10px] text-gray-500 mt-1 w-full text-right">→ {extra}</div>}
       </div>
     );
   };
@@ -68,9 +69,24 @@ const Dashboard: React.FC<DashboardProps> = ({ info, currentYear, onJumpToYear }
         临界点 (Critical Points)
       </h3>
       <div className="space-y-1">
-        {renderCountdown("Next Yun (运)", info.yun.end_year, info.yun.end_year + 1, nextLabels?.yun)}
-        {renderCountdown("Next Shi (世)", info.shi.end_year, info.shi.end_year + 1, nextLabels?.shi)}
-        {renderCountdown("Next Xun (旬)", info.xun.end_year, info.xun.end_year + 1, nextLabels?.xun)}
+        {renderCountdown(
+          'Next Yun (运)',
+          info.yun.end_year,
+          info.yun.end_year + 1,
+          nextLabels?.yun,
+        )}
+        {renderCountdown(
+          'Next Shi (世)',
+          info.shi.end_year,
+          info.shi.end_year + 1,
+          nextLabels?.shi,
+        )}
+        {renderCountdown(
+          'Next Xun (旬)',
+          info.xun.end_year,
+          info.xun.end_year + 1,
+          nextLabels?.xun,
+        )}
       </div>
     </div>
   );

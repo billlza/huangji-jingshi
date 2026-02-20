@@ -1,10 +1,10 @@
 /**
  * 时区转换单元测试
- * 
+ *
  * **Validates: Requirements 4.1, 4.2**
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { convertLocalToUTC, getTimezoneOffsetMinutes } from './timezoneConvert';
 
 describe('convertLocalToUTC', () => {
@@ -15,9 +15,9 @@ describe('convertLocalToUTC', () => {
   it('should convert UTC+8 local time to correct UTC time', () => {
     const localDateTime = '2025-12-18T21:48';
     const tzOffsetMinutes = 480; // UTC+8
-    
+
     const result = convertLocalToUTC(localDateTime, tzOffsetMinutes);
-    
+
     expect(result).toBe('2025-12-18T13:48:00.000Z');
   });
 
@@ -28,9 +28,9 @@ describe('convertLocalToUTC', () => {
   it('should convert UTC+9 local time to correct UTC time', () => {
     const localDateTime = '2025-12-18T21:48';
     const tzOffsetMinutes = 540; // UTC+9
-    
+
     const result = convertLocalToUTC(localDateTime, tzOffsetMinutes);
-    
+
     expect(result).toBe('2025-12-18T12:48:00.000Z');
   });
 
@@ -40,9 +40,9 @@ describe('convertLocalToUTC', () => {
   it('should convert UTC-5 local time to correct UTC time', () => {
     const localDateTime = '2025-12-18T08:00';
     const tzOffsetMinutes = -300; // UTC-5
-    
+
     const result = convertLocalToUTC(localDateTime, tzOffsetMinutes);
-    
+
     // 08:00 - (-300min) = 08:00 + 5h = 13:00 UTC
     expect(result).toBe('2025-12-18T13:00:00.000Z');
   });
@@ -53,9 +53,9 @@ describe('convertLocalToUTC', () => {
   it('should handle date crossing when converting to UTC', () => {
     const localDateTime = '2025-12-18T02:00';
     const tzOffsetMinutes = 480; // UTC+8
-    
+
     const result = convertLocalToUTC(localDateTime, tzOffsetMinutes);
-    
+
     // 02:00 - 8h = -6h = 前一天 18:00 UTC
     expect(result).toBe('2025-12-17T18:00:00.000Z');
   });
@@ -66,9 +66,9 @@ describe('convertLocalToUTC', () => {
   it('should handle date crossing for western timezones', () => {
     const localDateTime = '2025-12-18T20:00';
     const tzOffsetMinutes = -300; // UTC-5
-    
+
     const result = convertLocalToUTC(localDateTime, tzOffsetMinutes);
-    
+
     // 20:00 - (-5h) = 20:00 + 5h = 25:00 = 下一天 01:00 UTC
     expect(result).toBe('2025-12-19T01:00:00.000Z');
   });
@@ -79,9 +79,9 @@ describe('convertLocalToUTC', () => {
   it('should handle UTC+0 timezone correctly', () => {
     const localDateTime = '2025-12-18T15:30';
     const tzOffsetMinutes = 0; // UTC+0
-    
+
     const result = convertLocalToUTC(localDateTime, tzOffsetMinutes);
-    
+
     expect(result).toBe('2025-12-18T15:30:00.000Z');
   });
 
@@ -90,7 +90,7 @@ describe('convertLocalToUTC', () => {
    */
   it('should return current time for empty input', () => {
     const result = convertLocalToUTC('', 480);
-    
+
     // 应该返回一个有效的 ISO 字符串
     expect(result).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   });

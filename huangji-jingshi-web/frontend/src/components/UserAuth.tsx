@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 // 用户接口
 interface UserData {
@@ -21,10 +21,10 @@ export default function UserAuth() {
     const checkAuth = async () => {
       try {
         const { supabase } = await import('../lib/supabase');
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.warn('[UserAuth] Supabase error:', error.message);
+        const { data, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.warn('[UserAuth] Supabase error:', sessionError.message);
           setError(true);
           setLoading(false);
           return;
@@ -38,9 +38,11 @@ export default function UserAuth() {
             avatar_url: avatarUrl,
           });
         }
-        
+
         // 监听认证状态变化
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange((_event, session) => {
           if (session?.user) {
             const avatarUrl = session.user.user_metadata?.avatar_url || null;
             setUser({
@@ -54,7 +56,7 @@ export default function UserAuth() {
         });
 
         setLoading(false);
-        
+
         return () => {
           try {
             subscription.unsubscribe();
@@ -118,23 +120,24 @@ export default function UserAuth() {
           >
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gold/20 to-transparent border border-gold/30 flex items-center justify-center text-gold group-hover:text-white transition-colors overflow-hidden">
               {user.avatar_url ? (
-                <img 
-                  src={user.avatar_url} 
-                  alt="Avatar" 
-                  className="w-full h-full object-cover"
-                />
+                <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                  />
                 </svg>
               )}
             </div>
             <span className="text-xs font-medium text-gray-300 group-hover:text-gold transition-colors max-w-[100px] truncate">
               {user.email.split('@')[0]}
             </span>
-            <ChevronDown 
-              size={14} 
-              className={`text-gray-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} 
+            <ChevronDown
+              size={14}
+              className={`text-gray-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
             />
           </button>
 
@@ -146,24 +149,39 @@ export default function UserAuth() {
                 <p className="text-xs text-white truncate font-mono">{user.email}</p>
               </div>
               <div className="p-1">
-                <Link 
-                  to="/tools" 
+                <Link
+                  to="/tools"
                   className="flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
                   onClick={() => setIsOpen(false)}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                    />
                   </svg>
                   推演工具
                 </Link>
-                <Link 
-                  to="/settings" 
+                <Link
+                  to="/settings"
                   className="flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
                   onClick={() => setIsOpen(false)}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
                   </svg>
                   设置
                 </Link>
@@ -173,7 +191,12 @@ export default function UserAuth() {
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors text-left"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                    />
                   </svg>
                   登出
                 </button>

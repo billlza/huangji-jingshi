@@ -7,13 +7,17 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:strict": "node scripts/strict-run.mjs \"npm run build\"",
-    "lint": "eslint .",
+    "lint": "npm run lint:oxlint && npm run lint:biome",
     "preview": "vite preview",
     "setup-storage": "node setup-storage.js",
     "test": "vitest --run",
     "test:strict": "node scripts/strict-run.mjs \"npm test\"",
     "ci:strict": "npm run lint && npm run test:strict && npm run build:strict",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint:oxlint": "oxlint . --deny-warnings",
+    "lint:biome": "biome ci --linter-enabled=false --error-on-warnings .",
+    "format": "biome check --write --linter-enabled=false .",
+    "format:check": "biome ci --linter-enabled=false --error-on-warnings ."
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",
@@ -25,26 +29,21 @@
     "tz-lookup": "^6.1.25"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@biomejs/biome": "^2.4.3",
     "@tailwindcss/postcss": "^4.2.0",
     "@types/node": "^25.3.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.24",
-    "eslint": "^10.0.0",
-    "eslint-plugin-react-hooks": "7.1.0-canary-2ba30655-20260219",
-    "eslint-plugin-react-refresh": "^0.5.0",
-    "globals": "^17.3.0",
+    "oxlint": "^1.49.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.2.0",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.56.0",
     "vite": "npm:rolldown-vite@7.3.1",
     "vitest": "^4.0.18"
   },
   "overrides": {
-    "vite": "npm:rolldown-vite@7.3.1",
-    "minimatch": "^10.2.2"
+    "vite": "npm:rolldown-vite@7.3.1"
   }
 }

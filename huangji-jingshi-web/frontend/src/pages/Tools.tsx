@@ -1,14 +1,13 @@
-
-import { useState, useEffect } from 'react'
-import StarField from '../components/StarField';
+import { ChevronLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import BaziCard from '../components/BaziCard';
 import ControlPanel from '../components/ControlPanel';
 import FortuneCard from '../components/FortuneCard';
 import SkyCard from '../components/SkyCard';
+import StarField from '../components/StarField';
 import Timeline from '../components/Timeline';
-import BaziCard from '../components/BaziCard';
 import type { CombinedResponse, SkyResponse } from '../types';
-import { Link } from 'react-router-dom';
-import { ChevronLeft } from 'lucide-react';
 import { resolveTimezoneOffset, resolveTimezoneOffsetSync } from '../utils/timezone';
 
 function safeDate(s: string | null | undefined) {
@@ -26,7 +25,7 @@ export default function Tools() {
   const [data, setData] = useState<CombinedResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Initialize state from URL or defaults
   const [params, setParams] = useState(() => {
     const search = new URLSearchParams(window.location.search);
@@ -74,13 +73,16 @@ export default function Tools() {
         const q = new URLSearchParams({
           datetime: params.datetime,
           lat: params.lat.toString(),
-          lon: params.lon.toString()
+          lon: params.lon.toString(),
         });
-        
-        const res = await fetch(`${API_BASE}/api/sky-and-fortune?${q}`, { signal: controller.signal, keepalive: true });
+
+        const res = await fetch(`${API_BASE}/api/sky-and-fortune?${q}`, {
+          signal: controller.signal,
+          keepalive: true,
+        });
         if (!res.ok) {
           const errText = await res.text();
-          throw new Error(errText || "Server Error");
+          throw new Error(errText || 'Server Error');
         }
         const jsonData = await res.json();
         setData(jsonData);
@@ -88,9 +90,12 @@ export default function Tools() {
           const q2 = new URLSearchParams({
             datetime: compareDatetime,
             lat: params.lat.toString(),
-            lon: params.lon.toString()
+            lon: params.lon.toString(),
           });
-          const res2 = await fetch(`${API_BASE}/api/sky-and-fortune?${q2}`, { signal: controller.signal, keepalive: true });
+          const res2 = await fetch(`${API_BASE}/api/sky-and-fortune?${q2}`, {
+            signal: controller.signal,
+            keepalive: true,
+          });
           if (res2.ok) {
             const j2 = await res2.json();
             setCompareData(j2);
@@ -101,7 +106,7 @@ export default function Tools() {
           setCompareData(null);
         }
       } catch (err: unknown) {
-        const isAbort = (err instanceof DOMException) && err.name === 'AbortError';
+        const isAbort = err instanceof DOMException && err.name === 'AbortError';
         if (!isAbort) {
           console.error(err);
           const msg = err instanceof Error ? err.message : '请求失败，请检查网络或参数';
@@ -113,7 +118,9 @@ export default function Tools() {
     };
 
     fetchData();
-    return () => { /* 不主动 abort，避免预览环境产生 ERR_ABORTED */ };
+    return () => {
+      /* 不主动 abort，避免预览环境产生 ERR_ABORTED */
+    };
   }, [params, compareMode, compareDatetime, API_BASE]);
 
   const handleCalculate = (newParams: { datetime: string; lat: number; lon: number }) => {
@@ -123,7 +130,7 @@ export default function Tools() {
   const handleTimelineYearChange = (year: number) => {
     const current = safeDate(params.datetime);
     current.setFullYear(year);
-    setParams(prev => ({ ...prev, datetime: current.toISOString() }));
+    setParams((prev) => ({ ...prev, datetime: current.toISOString() }));
   };
 
   const handleJumpToYear = (year: number) => {
@@ -132,7 +139,7 @@ export default function Tools() {
     target.setMonth(0);
     target.setDate(1);
     target.setHours(12, 0, 0, 0);
-    setParams(prev => ({ ...prev, datetime: target.toISOString() }));
+    setParams((prev) => ({ ...prev, datetime: target.toISOString() }));
     const el = document.getElementById('timeline-section');
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -140,7 +147,11 @@ export default function Tools() {
   };
 
   // Calculate timezone offset for target location and datetime
-  const initialTz = resolveTimezoneOffsetSync(safeDate(params.datetime), params.lat, params.lon).offsetHours;
+  const initialTz = resolveTimezoneOffsetSync(
+    safeDate(params.datetime),
+    params.lat,
+    params.lon,
+  ).offsetHours;
   const [timezoneOffset, setTimezoneOffset] = useState<number>(initialTz);
   const [compareTimezoneOffset, setCompareTimezoneOffset] = useState<number | null>(null);
 
@@ -168,19 +179,20 @@ export default function Tools() {
     if (search.get('debug') === '1') setDebugOpen(true);
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
-        setDebugOpen(v => !v);
+        setDebugOpen((v) => !v);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const skyData: SkyResponse = (data?.sky) ?? ({ bodies: [], note: 'offline' } as SkyResponse);
-  const cmpSkyData: SkyResponse | null = compareMode ? ((compareData?.sky) ?? ({ bodies: [], note: 'offline' } as SkyResponse)) : null;
+  const skyData: SkyResponse = data?.sky ?? ({ bodies: [], note: 'offline' } as SkyResponse);
+  const cmpSkyData: SkyResponse | null = compareMode
+    ? (compareData?.sky ?? ({ bodies: [], note: 'offline' } as SkyResponse))
+    : null;
 
   return (
     <div className="relative min-h-screen bg-[#050508] text-white font-sans overflow-x-hidden">
-      
       {/* Nebula Background */}
       <div className="nebula-container">
         <div className="nebula-layer nebula-1"></div>
@@ -195,93 +207,93 @@ export default function Tools() {
 
       {/* Main Layout Container */}
       <div className="relative z-10 max-w-[1600px] mx-auto p-4 md:p-6">
-        
         {/* Header / Branding */}
         <header className="mb-8 flex items-center justify-between glass-panel rounded-2xl px-6 py-4">
-           <div className="flex items-center gap-4">
-              <Link to="/" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
-                <ChevronLeft className="w-5 h-5" />
-              </Link>
-              <div className="w-px h-6 bg-white/10"></div>
-              <div className="flex items-center gap-3">
-                 <h1 className="text-xl md:text-2xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-r from-gold via-yellow-200 to-gold tracking-[0.2em]">
-                   推演计算
-                 </h1>
-                 <span className="hidden sm:inline-block text-[10px] text-gray-500 px-2 border-l border-white/10 uppercase tracking-widest">
-                   Cosmic Calculator
-                 </span>
-              </div>
-           </div>
-           <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setCompareMode(m => !m)}
-                className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
-                  compareMode 
-                    ? 'bg-gold/20 border-gold text-gold' 
-                    : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/30'
-                }`}
-              >
-                {compareMode ? '关闭对比' : '对比模式'}
-              </button>
-              {compareMode && (
-                <input 
-                  type="date"
-                  value={compareDatetime ? compareDatetime.slice(0,10) : ''}
-                  onChange={(e) => {
-                    const d = new Date(e.target.value + 'T12:00:00Z').toISOString();
-                    setCompareDatetime(d);
-                  }}
-                  className="bg-black/30 border border-white/10 text-xs text-white px-3 py-1.5 rounded-full focus:outline-none focus:border-gold/50 transition-colors"
-                />
-              )}
-           </div>
+          <div className="flex items-center gap-4">
+            <Link
+              to="/"
+              className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </Link>
+            <div className="w-px h-6 bg-white/10"></div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl md:text-2xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-r from-gold via-yellow-200 to-gold tracking-[0.2em]">
+                推演计算
+              </h1>
+              <span className="hidden sm:inline-block text-[10px] text-gray-500 px-2 border-l border-white/10 uppercase tracking-widest">
+                Cosmic Calculator
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setCompareMode((m) => !m)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
+                compareMode
+                  ? 'bg-gold/20 border-gold text-gold'
+                  : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/30'
+              }`}
+            >
+              {compareMode ? '关闭对比' : '对比模式'}
+            </button>
+            {compareMode && (
+              <input
+                type="date"
+                value={compareDatetime ? compareDatetime.slice(0, 10) : ''}
+                onChange={(e) => {
+                  const d = new Date(e.target.value + 'T12:00:00Z').toISOString();
+                  setCompareDatetime(d);
+                }}
+                className="bg-black/30 border border-white/10 text-xs text-white px-3 py-1.5 rounded-full focus:outline-none focus:border-gold/50 transition-colors"
+              />
+            )}
+          </div>
         </header>
 
         {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
           {/* Left Column: Input Controls */}
           <div className="lg:col-span-3 space-y-6">
-             {/* 天机演算 - Sticky */}
-             <div className="lg:sticky lg:top-6">
-               <div className="glass-panel rounded-3xl p-6">
-                 <ControlPanel 
-                   initialParams={params} 
-                   onCalculate={handleCalculate} 
-                   isLoading={loading} 
-                 />
-               </div>
-             </div>
-             
-             {/* Error Message Block */}
-             {error && (
-              <div className="glass-panel p-4 border-red-500/30 bg-red-950/20 rounded-2xl text-red-200 text-xs leading-relaxed">
-                <strong className="text-red-400">System Error:</strong><br/>{error}
+            {/* 天机演算 - Sticky */}
+            <div className="lg:sticky lg:top-6">
+              <div className="glass-panel rounded-3xl p-6">
+                <ControlPanel
+                  initialParams={params}
+                  onCalculate={handleCalculate}
+                  isLoading={loading}
+                />
               </div>
-             )}
+            </div>
 
-             {/* 人生命盘 - 八字排盘 */}
-             <BaziCard 
-               observeParams={params}
-             />
+            {/* Error Message Block */}
+            {error && (
+              <div className="glass-panel p-4 border-red-500/30 bg-red-950/20 rounded-2xl text-red-200 text-xs leading-relaxed">
+                <strong className="text-red-400">System Error:</strong>
+                <br />
+                {error}
+              </div>
+            )}
+
+            {/* 人生命盘 - 八字排盘 */}
+            <BaziCard observeParams={params} />
           </div>
 
           {/* Right Column: Results */}
           <div className="lg:col-span-9 grid grid-cols-1 gap-6">
-            
             {/* Timeline Navigation */}
             <div className="glass-panel rounded-3xl p-1 overflow-hidden">
-              <Timeline 
-                  currentYear={safeYear(params.datetime)} 
-                  currentDatetime={params.datetime}
-                  onYearChange={handleTimelineYearChange}
-                  mapping={data?.fortune?.mapping_record}
+              <Timeline
+                currentYear={safeYear(params.datetime)}
+                currentDatetime={params.datetime}
+                onYearChange={handleTimelineYearChange}
+                mapping={data?.fortune?.mapping_record}
               />
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <div className="h-[500px] xl:h-[600px]">
-                <SkyCard 
+                <SkyCard
                   data={skyData}
                   date={safeDate(params.datetime)}
                   lat={params.lat}
@@ -292,8 +304,8 @@ export default function Tools() {
               </div>
               <div>
                 {data && (
-                  <FortuneCard 
-                    data={data.fortune} 
+                  <FortuneCard
+                    data={data.fortune}
                     currentYear={safeYear(params.datetime)}
                     onJumpToYear={handleJumpToYear}
                   />
@@ -304,8 +316,8 @@ export default function Tools() {
             {compareMode && (
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 <div className="h-[500px] xl:h-[600px]">
-                  <SkyCard 
-                    data={cmpSkyData ?? ({ bodies: [], note: 'offline' } as SkyResponse)} 
+                  <SkyCard
+                    data={cmpSkyData ?? ({ bodies: [], note: 'offline' } as SkyResponse)}
                     date={safeDate(compareDatetime || params.datetime)}
                     lat={params.lat}
                     lon={params.lon}
@@ -315,44 +327,56 @@ export default function Tools() {
                 </div>
                 <div>
                   {compareData && (
-                    <FortuneCard 
-                      data={compareData.fortune} 
+                    <FortuneCard
+                      data={compareData.fortune}
                       currentYear={safeYear(compareDatetime || params.datetime)}
                     />
                   )}
                 </div>
               </div>
             )}
-            
-            {!data && !loading && !error && (
-               <div className="glass-panel rounded-3xl p-4 text-gray-400 text-xs">
-                  后端不可用，已显示离线星图（仅基础星空，无运势数据）。
-               </div>
-            )}
 
+            {!data && !loading && !error && (
+              <div className="glass-panel rounded-3xl p-4 text-gray-400 text-xs">
+                后端不可用，已显示离线星图（仅基础星空，无运势数据）。
+              </div>
+            )}
           </div>
         </div>
       </div>
       {debugOpen && <DebugPanel data={data} compare={compareData} />}
     </div>
-  )
+  );
 }
 
-function DebugPanel({ data, compare }: { data: CombinedResponse | null; compare: CombinedResponse | null }) {
+function DebugPanel({
+  data,
+  compare,
+}: {
+  data: CombinedResponse | null;
+  compare: CombinedResponse | null;
+}) {
   if (!data) return null;
   const sky = data.sky;
   const fortune = data.fortune;
   return (
     <div className="fixed bottom-4 right-4 z-50 w-[360px] max-h-[70vh] overflow-auto bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl">
-      <div className="text-xs text-gold/50 uppercase tracking-widest mb-4 border-b border-white/5 pb-2">Debug Console</div>
+      <div className="text-xs text-gold/50 uppercase tracking-widest mb-4 border-b border-white/5 pb-2">
+        Debug Console
+      </div>
       <div className="text-[10px] text-gray-400 font-mono space-y-3">
-        <div>JD: {sky.jd?.toFixed(4) ?? 'N/A'} · GMST: {sky.gmst_deg?.toFixed(2) ?? 'N/A'} °</div>
+        <div>
+          JD: {sky.jd?.toFixed(4) ?? 'N/A'} · GMST: {sky.gmst_deg?.toFixed(2) ?? 'N/A'} °
+        </div>
         <div>ΔT: {sky.delta_t_sec?.toFixed(2) ?? 'N/A'} s</div>
-        <div className="p-2 bg-white/5 rounded">Lat: {new URLSearchParams(window.location.search).get('lat') || ''} · Lon: {new URLSearchParams(window.location.search).get('lon') || ''}</div>
-        
+        <div className="p-2 bg-white/5 rounded">
+          Lat: {new URLSearchParams(window.location.search).get('lat') || ''} · Lon:{' '}
+          {new URLSearchParams(window.location.search).get('lon') || ''}
+        </div>
+
         <div className="mt-4 text-gray-300 font-bold">Celestial Bodies</div>
         <div className="space-y-1 max-h-[150px] overflow-y-auto custom-scrollbar">
-          {sky.bodies.map(b => (
+          {sky.bodies.map((b) => (
             <div key={b.name} className="flex justify-between border-b border-white/5 pb-1">
               <span className="text-cyan-300">{b.name}</span>
               <span>Alt {b.alt_deg.toFixed(1)}°</span>
@@ -364,7 +388,9 @@ function DebugPanel({ data, compare }: { data: CombinedResponse | null; compare:
         <div className="p-2 bg-white/5 rounded">
           {fortune.mapping_record ? (
             <div className="space-y-1">
-              <div className="text-gold">{fortune.mapping_record.gregorian_year} · {fortune.mapping_record.ganzhi}</div>
+              <div className="text-gold">
+                {fortune.mapping_record.gregorian_year} · {fortune.mapping_record.ganzhi}
+              </div>
               <div>{fortune.mapping_record.dynasty}</div>
               <div className="text-gray-500">{fortune.mapping_record.person}</div>
             </div>
@@ -372,10 +398,8 @@ function DebugPanel({ data, compare }: { data: CombinedResponse | null; compare:
             <div className="italic opacity-50">No mapping record found</div>
           )}
         </div>
-        
-        {compare && (
-          <div className="mt-4 text-gray-300 font-bold">Comparison Debug</div>
-        )}
+
+        {compare && <div className="mt-4 text-gray-300 font-bold">Comparison Debug</div>}
       </div>
     </div>
   );

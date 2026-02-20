@@ -23,13 +23,13 @@ export async function detectChinaMainland(): Promise<boolean> {
       // 方法1: 尝试访问国内特定的快速API（应该很快返回）
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3000);
-      
+
       const res = await fetch('http://ip-api.com/json/?fields=countryCode,status', {
-        signal: controller.signal
+        signal: controller.signal,
       });
-      
+
       clearTimeout(timeout);
-      
+
       if (res.ok) {
         const data = await res.json();
         // CN = 中国大陆
@@ -45,8 +45,14 @@ export async function detectChinaMainland(): Promise<boolean> {
     // 方法2: 通过时区推测（不够准确但可作为备用）
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const chinaTimezones = ['Asia/Shanghai', 'Asia/Chongqing', 'Asia/Urumqi', 'Asia/Hong_Kong', 'Asia/Macau'];
-      
+      const chinaTimezones = [
+        'Asia/Shanghai',
+        'Asia/Chongqing',
+        'Asia/Urumqi',
+        'Asia/Hong_Kong',
+        'Asia/Macau',
+      ];
+
       if (chinaTimezones.includes(tz)) {
         console.log('⏰ 通过时区推测: 可能在中国区域');
         isInChina = true;
@@ -75,15 +81,15 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
   // 策略1: 中国大陆用户 - 优先使用后端中转
   if (inChina) {
     console.log('📍 [大陆用户] 使用后端中转进行逆地理编码');
-    
+
     // 尝试后端代理
     if (API_BASE) {
       try {
         const res = await fetch(
           `${API_BASE}/api/geocode/reverse?lat=${latitude}&lon=${longitude}`,
-          { signal: AbortSignal.timeout(8000) }
+          { signal: AbortSignal.timeout(8000) },
         );
-        
+
         if (res.ok) {
           const data = await res.json();
           if (data.location) {
@@ -95,14 +101,14 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
         console.log('❌ 后端中转失败', error);
       }
     }
-    
+
     // 降级: 尝试 BigDataCloud（大陆可访问）
     try {
       const res = await fetch(
         `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=zh`,
-        { signal: AbortSignal.timeout(5000) }
+        { signal: AbortSignal.timeout(5000) },
       );
-      
+
       if (res.ok) {
         const data = await res.json();
         const location = data.city || data.locality || data.principalSubdivision || '未知地点';
@@ -112,41 +118,42 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
     } catch (error) {
       console.log('❌ BigDataCloud 失败', error);
     }
-    
+
     return '';
   }
 
   // 策略2: 海外用户 - 直接调用国际API（更快）
   console.log('🌐 [海外用户] 直接调用国际API');
-  
+
   // 优先 OpenStreetMap（海外速度快）
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=zh-CN`,
       {
         signal: AbortSignal.timeout(5000),
-        headers: { 'User-Agent': 'HuangjiJingshiWeb/1.0' }
-      }
+        headers: { 'User-Agent': 'HuangjiJingshiWeb/1.0' },
+      },
     );
-    
+
     if (res.ok) {
       const data = await res.json();
       const address = data.address;
-      const location = address.city || address.town || address.county || address.state || '未知地点';
+      const location =
+        address.city || address.town || address.county || address.state || '未知地点';
       console.log('✅ OpenStreetMap 成功:', location);
       return location;
     }
   } catch (error) {
     console.log('❌ OpenStreetMap 失败', error);
   }
-  
+
   // 降级: BigDataCloud
   try {
     const res = await fetch(
       `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=zh`,
-      { signal: AbortSignal.timeout(5000) }
+      { signal: AbortSignal.timeout(5000) },
     );
-    
+
     if (res.ok) {
       const data = await res.json();
       const location = data.city || data.locality || data.principalSubdivision || '未知地点';
@@ -156,7 +163,7 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
   } catch (error) {
     console.log('❌ BigDataCloud 失败', error);
   }
-  
+
   return '';
 }
 
@@ -174,14 +181,13 @@ export async function geocode(address: string): Promise<{
   // 策略1: 中国大陆用户 - 优先使用后端中转
   if (inChina) {
     console.log('📍 [大陆用户] 使用后端中转进行地理编码');
-    
+
     if (API_BASE) {
       try {
-        const res = await fetch(
-          `${API_BASE}/api/geocode?address=${encodeURIComponent(address)}`,
-          { signal: AbortSignal.timeout(10000) }
-        );
-        
+        const res = await fetch(`${API_BASE}/api/geocode?address=${encodeURIComponent(address)}`, {
+          signal: AbortSignal.timeout(10000),
+        });
+
         if (res.ok) {
           const data = await res.json();
           if (data.latitude && data.longitude) {
@@ -189,7 +195,7 @@ export async function geocode(address: string): Promise<{
             return {
               latitude: data.latitude,
               longitude: data.longitude,
-              address: data.address || address
+              address: data.address || address,
             };
           } else if (data.error) {
             console.log('❌ 后端中转地理编码失败:', data.error);
@@ -200,23 +206,23 @@ export async function geocode(address: string): Promise<{
         console.log('❌ 后端中转地理编码失败', error);
       }
     }
-    
+
     return null;
   }
 
   // 策略2: 海外用户 - 直接调用国际API
   console.log('🌐 [海外用户] 直接调用国际地理编码API');
-  
+
   // 优先 OpenStreetMap（支持中文地址）
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&accept-language=zh-CN`,
       {
         signal: AbortSignal.timeout(8000),
-        headers: { 'User-Agent': 'HuangjiJingshiWeb/1.0' }
-      }
+        headers: { 'User-Agent': 'HuangjiJingshiWeb/1.0' },
+      },
     );
-    
+
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
@@ -228,7 +234,7 @@ export async function geocode(address: string): Promise<{
           return {
             latitude: lat,
             longitude: lon,
-            address: first.display_name || address
+            address: first.display_name || address,
           };
         }
       }
@@ -236,14 +242,14 @@ export async function geocode(address: string): Promise<{
   } catch (error) {
     console.log('❌ OpenStreetMap 地理编码失败', error);
   }
-  
+
   // 降级: BigDataCloud
   try {
     const res = await fetch(
       `https://api.bigdatacloud.net/data/forward-geocode-client?query=${encodeURIComponent(address)}&localityLanguage=zh`,
-      { signal: AbortSignal.timeout(8000) }
+      { signal: AbortSignal.timeout(8000) },
     );
-    
+
     if (res.ok) {
       const data = await res.json();
       if (data.results && Array.isArray(data.results) && data.results.length > 0) {
@@ -253,7 +259,7 @@ export async function geocode(address: string): Promise<{
           return {
             latitude: first.latitude,
             longitude: first.longitude,
-            address: first.formatted || address
+            address: first.formatted || address,
           };
         }
       }
@@ -261,7 +267,7 @@ export async function geocode(address: string): Promise<{
   } catch (error) {
     console.log('❌ BigDataCloud 地理编码失败', error);
   }
-  
+
   return null;
 }
 
@@ -280,13 +286,13 @@ export async function getIPLocation(): Promise<{
   // 策略1: 中国大陆用户 - 使用后端中转
   if (inChina) {
     console.log('📍 [大陆用户] 使用后端中转进行IP定位');
-    
+
     if (API_BASE) {
       try {
-        const res = await fetch(`${API_BASE}/api/geoip`, { 
-          signal: AbortSignal.timeout(8000) 
+        const res = await fetch(`${API_BASE}/api/geoip`, {
+          signal: AbortSignal.timeout(8000),
         });
-        
+
         if (res.ok) {
           const data = await res.json();
           console.log('✅ 后端中转IP定位成功:', data.city);
@@ -294,26 +300,26 @@ export async function getIPLocation(): Promise<{
             latitude: data.latitude,
             longitude: data.longitude,
             city: data.city,
-            region: data.region
+            region: data.region,
           };
         }
       } catch (error) {
         console.log('❌ 后端中转IP定位失败', error);
       }
     }
-    
+
     return null;
   }
 
   // 策略2: 海外用户 - 直接调用国际API
   console.log('🌐 [海外用户] 直接调用国际IP定位API');
-  
+
   // 优先 ipapi.co（海外速度快，数据准确）
   try {
-    const res = await fetch('https://ipapi.co/json/', { 
-      signal: AbortSignal.timeout(5000) 
+    const res = await fetch('https://ipapi.co/json/', {
+      signal: AbortSignal.timeout(5000),
     });
-    
+
     if (res.ok) {
       const data = await res.json();
       console.log('✅ ipapi.co 成功:', data.city);
@@ -321,19 +327,19 @@ export async function getIPLocation(): Promise<{
         latitude: data.latitude,
         longitude: data.longitude,
         city: data.city,
-        region: data.region
+        region: data.region,
       };
     }
   } catch (error) {
     console.log('❌ ipapi.co 失败', error);
   }
-  
+
   // 降级: ip-api.com
   try {
-    const res = await fetch('http://ip-api.com/json/?lang=zh-CN', { 
-      signal: AbortSignal.timeout(5000) 
+    const res = await fetch('http://ip-api.com/json/?lang=zh-CN', {
+      signal: AbortSignal.timeout(5000),
     });
-    
+
     if (res.ok) {
       const data = await res.json();
       if (data.status === 'success') {
@@ -342,14 +348,13 @@ export async function getIPLocation(): Promise<{
           latitude: data.lat,
           longitude: data.lon,
           city: data.city,
-          region: data.regionName
+          region: data.regionName,
         };
       }
     }
   } catch (error) {
     console.log('❌ ip-api.com 失败', error);
   }
-  
+
   return null;
 }
-
