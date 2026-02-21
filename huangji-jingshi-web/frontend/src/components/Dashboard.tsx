@@ -14,11 +14,21 @@ const Dashboard: React.FC<DashboardProps> = ({ info, currentYear, onJumpToYear }
   useEffect(() => {
     const run = async () => {
       try {
+        const sp = new URLSearchParams(window.location.search);
+        const mode = sp.get('mode') || 'compare';
+        const yearStart = sp.get('yearStart') || 'lichun';
+        const primary = sp.get('primary') || 'algorithm';
         const nextY = info.yun.end_year + 1;
         const nextS = info.shi.end_year + 1;
         const nextX = info.xun.end_year + 1;
         const fetchOne = async (y: number) => {
-          const r = await fetch(`${API_BASE}/api/timeline?datetime=${y}-06-30T12:00:00Z`);
+          const q = new URLSearchParams({
+            datetime: `${y}-06-30T12:00:00Z`,
+            mode,
+            yearStart,
+            primary,
+          });
+          const r = await fetch(`${API_BASE}/api/timeline?${q}`);
           const j = await r.json();
           return j as { current: HuangjiInfo };
         };

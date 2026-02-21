@@ -22,8 +22,10 @@ use huangji_core::calendar::ganzhi::{
 };
 use huangji_core::calendar::time_rule::{to_rule_datetime, datetime_to_hj_year, YearStartMode};
 // use huangji_core::algorithm::year_to_acc;
+use huangji_core::algorithm;
+use huangji_core::huangji_table;
 use huangji_core::sky::{compute_sky, SkyRequest};
-use huangji_core::fortune::{compute_fortune, FortuneRequest};
+use huangji_core::fortune::{compute_fortune, CalcMode, FortuneRequest, PrimaryMode};
 
 // 静态数据缓存
 static TIMELINE_DATA: Lazy<RwLock<HashMap<i32, serde_json::Value>>> = Lazy::new(|| {
@@ -259,6 +261,10 @@ struct TimelineQuery {
     #[serde(rename = "tzOffsetMinutes")]
     tz_offset_minutes: Option<i32>,
     lon: Option<f64>,  // 用于真太阳时校正
+    #[serde(rename = "yearStart")]
+    year_start: Option<String>,
+    mode: Option<String>,
+    primary: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -273,6 +279,10 @@ struct SkyFortuneQuery {
     /// 是否使用真太阳时（可选）
     #[serde(rename = "useTrueSolarTime")]
     use_true_solar_time: Option<bool>,
+    #[serde(rename = "yearStart")]
+    year_start: Option<String>,
+    mode: Option<String>,
+    primary: Option<String>,
 }
 
 // HistoryQuery 保留用于将来的历史数据过滤
@@ -294,6 +304,10 @@ struct HistoryRelatedQuery {
 #[derive(Deserialize)]
 struct MappingQuery {
     year: Option<i32>,
+    #[serde(rename = "yearStart")]
+    year_start: Option<String>,
+    mode: Option<String>,
+    primary: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -323,20 +337,45 @@ struct GeocodeForwardQuery {
     address: String,
 }
 
+fn parse_calc_mode(input: Option<&str>) -> CalcMode {
+    input
+        .and_then(|value| value.parse::<CalcMode>().ok())
+        .unwrap_or_default()
+}
+
+fn parse_primary_mode(input: Option<&str>) -> PrimaryMode {
+    input
+        .and_then(|value| value.parse::<PrimaryMode>().ok())
+        .unwrap_or_default()
+}
+
+fn parse_year_start_mode(input: Option<&str>) -> YearStartMode {
+    match input.unwrap_or("lichun").trim().to_ascii_lowercase().as_str() {
+        "gregorian" => YearStartMode::GregorianNewYear,
+        _ => YearStartMode::Lichun,
+    }
+}
+
 // 核心 API - 获取天象和运势数据
 async fn get_sky_and_fortune(Query(params): Query<SkyFortuneQuery>) -> impl IntoResponse {
     let tz_offset_minutes = params.tz_offset_minutes.unwrap_or(480);
     let lat = params.lat.unwrap_or(39.9);
     let lon = params.lon.unwrap_or(116.4);
     let use_true_solar_time = params.use_true_solar_time.unwrap_or(false);
+    let mode = parse_calc_mode(params.mode.as_deref());
+    let primary = parse_primary_mode(params.primary.as_deref());
+    let year_start = parse_year_start_mode(params.year_start.as_deref());
 
     tracing::info!(
-        "🌟 获取天象运势: datetime={}, tzOffsetMinutes={}, useTrueSolarTime={}, lat={}, lon={}",
+        "🌟 获取天象运势: datetime={}, tzOffsetMinutes={}, useTrueSolarTime={}, lat={}, lon={}, mode={:?}, primary={:?}, yearStart={:?}",
         params.datetime,
         tz_offset_minutes,
         use_true_solar_time,
         lat,
-        lon
+        lon,
+        mode,
+        primary,
+        year_start
     );
 
     // 解析输入时间：优先 RFC3339（带 Z 或 offset），否则按“本地时间 + tzOffsetMinutes”解释
@@ -370,6 +409,9 @@ async fn get_sky_and_fortune(Query(params): Query<SkyFortuneQuery>) -> impl Into
         tz_offset_minutes: Some(tz_offset_minutes),
         lon: Some(lon),
         use_true_solar_time: Some(use_true_solar_time),
+        mode: Some(mode),
+        year_start: Some(year_start),
+        primary: Some(primary),
     });
 
     Json(json!({
@@ -395,125 +437,118 @@ async fn get_history_related(Query(params): Query<HistoryRelatedQuery>) -> impl 
 
 // 获取映射记录
 async fn get_mapping(Query(params): Query<MappingQuery>) -> impl IntoResponse {
-    let year = params.year.unwrap_or(2025);
-    
-    tracing::debug!("🗺️ 获取映射记录: year={}", year);
-    
+    let year = params.year.unwrap_or_else(|| Utc::now().year());
+    let mode = parse_calc_mode(params.mode.as_deref());
+    let primary = parse_primary_mode(params.primary.as_deref());
+    let year_start = parse_year_start_mode(params.year_start.as_deref());
+
+    tracing::debug!(
+        "🗺️ 获取映射记录: year={}, mode={:?}, primary={:?}, year_start={:?}",
+        year,
+        mode,
+        primary,
+        year_start
+    );
+
+    let record_raw = huangji_table::get_year_record(year);
+    let record_normalized = huangji_table::get_year_record_normalized(year);
+    let coverage = huangji_table::get_coverage();
+
+    let (available, reason) = if record_raw.is_some() {
+        (true, "record found".to_string())
+    } else if let Some(range) = coverage {
+        (
+            false,
+            format!(
+                "record not found, table coverage {}-{}",
+                range.min_year, range.max_year
+            ),
+        )
+    } else {
+        (false, "record not found".to_string())
+    };
+
     Json(json!({
-        "record": {
-            "year": year,
-            "nian_hexagram": "乾",
-            "yue_hexagram": "坤",
-            "ri_hexagram": "屯",
-            "yuan_index": 1,
-            "hui_index": 1,
-            "yun_index": 6,
-            "shi_index": 2
-        }
+        "year": year,
+        "mode": mode,
+        "primary": primary,
+        "year_start": match year_start {
+            YearStartMode::Lichun => "lichun",
+            YearStartMode::GregorianNewYear => "gregorian",
+        },
+        "available": available,
+        "reason": reason,
+        "record_raw": record_raw,
+        "record_normalized": record_normalized
     }))
 }
 
 // 获取时间线
 async fn get_timeline(Query(params): Query<TimelineQuery>) -> impl IntoResponse {
-    // 解析 UTC 时间
-    let datetime_utc = chrono::DateTime::parse_from_rfc3339(&params.datetime)
-        .map(|dt| dt.with_timezone(&Utc))
-        .or_else(|_| {
-            chrono::NaiveDateTime::parse_from_str(&params.datetime, "%Y-%m-%dT%H:%M:%S")
-                .map(|dt| Utc.from_utc_datetime(&dt))
-        })
-        .unwrap_or_else(|_| Utc::now());
-    
-    // 获取时区偏移（默认 UTC+8 = 480 分钟）
-    // tzOffsetMinutes: 东为正 UTC+8=+480, 西为负 UTC-5=-300
     let tz_offset_minutes = params.tz_offset_minutes.unwrap_or(480);
     let lon = params.lon.unwrap_or(116.4);
-    
-    // 使用统一入口计算 hj_year（使用公历岁首模式，不使用真太阳时）
-    let rule_dt = to_rule_datetime(datetime_utc, tz_offset_minutes, lon, false);
-    let hj_year = datetime_to_hj_year(rule_dt, YearStartMode::GregorianNewYear);
-    
-    // 检查 year=0 的情况
-    if hj_year == 0 {
-        // 这不应该发生，因为 datetime_to_hj_year 已经处理了
-        tracing::warn!("⚠️ hj_year=0 不应该出现");
-    }
-    
-    tracing::debug!("📅 查询时间线: hj_year={} (from datetime: {})", hj_year, params.datetime);
-    let year = hj_year;
-    
-    let data = TIMELINE_DATA.read().unwrap();
-    if let Some(timeline) = data.get(&year) {
-        Json(timeline.clone())
+    let mode = parse_calc_mode(params.mode.as_deref());
+    let primary = parse_primary_mode(params.primary.as_deref());
+    let year_start = parse_year_start_mode(params.year_start.as_deref());
+
+    let datetime_utc = if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&params.datetime) {
+        dt.with_timezone(&Utc)
+    } else if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(&params.datetime, "%Y-%m-%dT%H:%M:%S") {
+        if let Some(offset) = chrono::FixedOffset::east_opt(tz_offset_minutes * 60) {
+            if let Some(local_dt) = offset.from_local_datetime(&naive).single() {
+                local_dt.with_timezone(&Utc)
+            } else {
+                Utc::now()
+            }
+        } else {
+            Utc::now()
+        }
     } else {
-        // 返回完整的模拟数据，完全匹配前端 TimelineData 类型
-        // 根据皇极经世：当前处于午会（第7会），不是第1会
-        // 十二会：子丑寅卯辰巳午未申酉戌亥
-        Json(json!({
-            "year": year,
-            "current": {
-                "yuan": {
-                    "index": 1,
-                    "name": "元",
-                    "start_year": -67017,
-                    "end_year": 62583,
-                    "max_index": 1
-                },
-                "hui": {
-                    "index": 7,
-                    "name": "午",
-                    "start_year": -2156,
-                    "end_year": 8644,
-                    "max_index": 12
-                },
-                "yun": {
-                    "index": 6,
-                    "name": "己",
-                    "start_year": 1864,
-                    "end_year": 2223,
-                    "max_index": 30
-                },
-                "shi": {
-                    "index": 2,
-                    "name": "丑",
-                    "start_year": 2014,
-                    "end_year": 2043,
-                    "max_index": 12
-                },
-                "xun": {
-                    "index": 2,
-                    "name": "甲戌",
-                    "start_year": 2024,
-                    "end_year": 2033,
-                    "max_index": 3
-                },
-                "year_gua": "乾"
-            },
-            "yuan_list": [
-                {"index": 1, "name": "元", "start_year": -67017, "end_year": 62583, "max_index": 1}
-            ],
-            "hui_list": [
-                {"index": 6, "name": "巳", "start_year": -12956, "end_year": -2157, "max_index": 12},
-                {"index": 7, "name": "午", "start_year": -2156, "end_year": 8644, "max_index": 12},
-                {"index": 8, "name": "未", "start_year": 8645, "end_year": 19444, "max_index": 12}
-            ],
-            "yun_list": [
-                {"index": 5, "name": "戊", "start_year": 1504, "end_year": 1863, "max_index": 30},
-                {"index": 6, "name": "己", "start_year": 1864, "end_year": 2223, "max_index": 30},
-                {"index": 7, "name": "庚", "start_year": 2224, "end_year": 2583, "max_index": 30}
-            ],
-            "shi_list": [
-                {"index": 1, "name": "子", "start_year": 1984, "end_year": 2013, "max_index": 12},
-                {"index": 2, "name": "丑", "start_year": 2014, "end_year": 2043, "max_index": 12},
-                {"index": 3, "name": "寅", "start_year": 2044, "end_year": 2073, "max_index": 12}
-            ],
-            "xun_list": [
-                {"index": 1, "name": "甲子", "start_year": 2014, "end_year": 2023, "max_index": 3},
-                {"index": 2, "name": "甲戌", "start_year": 2024, "end_year": 2033, "max_index": 3},
-                {"index": 3, "name": "甲申", "start_year": 2034, "end_year": 2043, "max_index": 3}
-            ]
-        }))
-    }
+        Utc::now()
+    };
+
+    let rule_dt = to_rule_datetime(datetime_utc, tz_offset_minutes, lon, false);
+    let hj_year = datetime_to_hj_year(rule_dt, year_start);
+
+    tracing::debug!(
+        "📅 查询时间线: hj_year={}, mode={:?}, primary={:?}, year_start={:?}",
+        hj_year,
+        mode,
+        primary,
+        year_start
+    );
+
+    let fortune = compute_fortune(&FortuneRequest {
+        datetime: datetime_utc,
+        tz_offset_minutes: Some(tz_offset_minutes),
+        lon: Some(lon),
+        use_true_solar_time: Some(false),
+        mode: Some(mode),
+        year_start: Some(year_start),
+        primary: Some(primary),
+    });
+
+    let mut timeline = algorithm::get_timeline_info(hj_year);
+    timeline.current.year_gua = fortune.hexagram_major.clone();
+    timeline.current.yuan.name = fortune.yuan.clone();
+    timeline.current.hui.name = fortune.hui.clone();
+    timeline.current.yun.name = fortune.yun.clone();
+    timeline.current.shi.name = fortune.shi.clone();
+    timeline.current.xun.name = fortune.xun.clone();
+
+    Json(json!({
+        "year": hj_year,
+        "current": timeline.current,
+        "yuan_list": timeline.yuan_list,
+        "hui_list": timeline.hui_list,
+        "yun_list": timeline.yun_list,
+        "shi_list": timeline.shi_list,
+        "xun_list": timeline.xun_list,
+        "calc_meta": fortune.calc_meta,
+        "variants": fortune.variants,
+        "diff": fortune.diff,
+        "mapping_record": fortune.mapping_record
+    }))
 }
 
 // 获取历史数据 - 返回数组格式

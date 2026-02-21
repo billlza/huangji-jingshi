@@ -124,6 +124,49 @@ const FortuneCard: React.FC<FortuneCardProps> = ({ data, currentYear, onJumpToYe
             </button>
           </div>
 
+          {data.variants && (
+            <div className="bg-black/30 p-6 rounded-2xl border border-white/5 space-y-3">
+              <div className="text-xs text-gold/70 uppercase tracking-widest">
+                双模式对照 · mode compare
+              </div>
+              {data.calc_meta && (
+                <div className="text-[11px] text-gray-400">
+                  当前：{data.calc_meta.mode} / 主值：{data.calc_meta.primary} / 年界：
+                  {data.calc_meta.year_start} / 经世年：{data.calc_meta.hj_year}
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[12px]">
+                <div className="bg-black/40 p-3 rounded border border-white/5">
+                  <div className="text-gray-500 mb-1">公式</div>
+                  <div className="text-white">{data.variants.algorithm.hexagram_major}</div>
+                </div>
+                <div className="bg-black/40 p-3 rounded border border-white/5">
+                  <div className="text-gray-500 mb-1">表原值</div>
+                  <div className="text-white">
+                    {data.variants.table_raw.available
+                      ? data.variants.table_raw.hexagram_major
+                      : 'N/A'}
+                  </div>
+                </div>
+                <div className="bg-black/40 p-3 rounded border border-white/5">
+                  <div className="text-gray-500 mb-1">表修正值</div>
+                  <div className="text-white">
+                    {data.variants.table_normalized.available
+                      ? data.variants.table_normalized.hexagram_major
+                      : 'N/A'}
+                  </div>
+                </div>
+              </div>
+              {data.diff && (
+                <div className="text-[11px] text-gray-400 leading-relaxed">
+                  差异：年卦[{data.diff.hexagram_major_diff ? '有' : '无'}] / 运[
+                  {data.diff.yun_diff ? '有' : '无'}] / 世[{data.diff.shi_diff ? '有' : '无'}] / 旬[
+                  {data.diff.xun_diff ? '有' : '无'}] · {data.diff.note}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Historical Mirror */}
           <div className="bg-black/30 p-6 rounded-2xl border border-white/5">
             <div className="text-xs text-gold/70 uppercase tracking-widest mb-3">

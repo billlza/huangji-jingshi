@@ -1,7 +1,50 @@
+use crate::calendar::time_rule::{utc_to_hj_year, YearStartMode};
+use crate::{algorithm, huangji_table, lunar};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use crate::{data, lunar, algorithm};
-use crate::calendar::time_rule::{utc_to_hj_year, YearStartMode};
+use std::str::FromStr;
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum CalcMode {
+    Algorithm,
+    Table,
+    #[default]
+    Compare,
+}
+
+impl FromStr for CalcMode {
+    type Err = ();
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        match input.trim().to_ascii_lowercase().as_str() {
+            "algorithm" => Ok(Self::Algorithm),
+            "table" => Ok(Self::Table),
+            "compare" => Ok(Self::Compare),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum PrimaryMode {
+    #[default]
+    Algorithm,
+    Table,
+}
+
+impl FromStr for PrimaryMode {
+    type Err = ();
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        match input.trim().to_ascii_lowercase().as_str() {
+            "algorithm" => Ok(Self::Algorithm),
+            "table" => Ok(Self::Table),
+            _ => Err(()),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FortuneRequest {
@@ -15,11 +58,61 @@ pub struct FortuneRequest {
     /// 是否使用真太阳时（默认 false）
     #[serde(default)]
     pub use_true_solar_time: Option<bool>,
+    /// 计算模式：algorithm|table|compare（默认 compare）
+    #[serde(default)]
+    pub mode: Option<CalcMode>,
+    /// 年界模式：lichun|gregorian（默认 lichun）
+    #[serde(default)]
+    pub year_start: Option<YearStartMode>,
+    /// compare 模式下主值来源（默认 algorithm）
+    #[serde(default)]
+    pub primary: Option<PrimaryMode>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FortuneVariant {
+    pub source: String,
+    pub available: bool,
+    pub yuan: String,
+    pub hui: String,
+    pub yun: String,
+    pub shi: String,
+    pub xun: String,
+    pub nian_ganzhi: String,
+    pub hexagram_major: String,
+    pub note: String,
+    pub period_info: Option<algorithm::HuangjiInfo>,
+    pub mapping_record: Option<huangji_table::YearRecord>,
+    pub mapping_record_normalized: Option<huangji_table::NormalizedYearRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FortuneVariants {
+    pub algorithm: FortuneVariant,
+    pub table_raw: FortuneVariant,
+    pub table_normalized: FortuneVariant,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FortuneCalcMeta {
+    pub mode: CalcMode,
+    pub primary: PrimaryMode,
+    pub year_start: String,
+    pub hj_year: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FortuneDiff {
+    pub hexagram_major_diff: bool,
+    pub yun_diff: bool,
+    pub shi_diff: bool,
+    pub xun_diff: bool,
+    pub note: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FortuneResponse {
-    // 皇极经世
+    // 皇极经世主输出（兼容旧字段）
     pub yuan: String,
     pub hui: String,
     pub yun: String,
@@ -28,9 +121,9 @@ pub struct FortuneResponse {
     pub nian_ganzhi: String,
     pub hexagram_major: String,
     pub hexagram_minor: Option<String>,
-    pub hexagram_code: Option<Vec<u8>>, // New: Binary structure [top, ..., bottom] (0/1)
-    pub flying_star: Option<String>,    // New: Annual Flying Star (e.g. "二黑")
-    
+    pub hexagram_code: Option<Vec<u8>>,
+    pub flying_star: Option<String>,
+
     // Period Info for Timeline
     pub period_info: Option<algorithm::HuangjiInfo>,
 
@@ -41,13 +134,190 @@ pub struct FortuneResponse {
 
     // 农历 / 黄历
     pub lunar: Option<lunar::LunarInfo>,
-    
+
     pub note: String,
-    pub mapping_record: Option<crate::data::YearRecord>,
+    pub mapping_record: Option<huangji_table::YearRecord>,
+
+    // 新增元信息
+    pub calc_meta: Option<FortuneCalcMeta>,
+    pub variants: Option<FortuneVariants>,
+    pub diff: Option<FortuneDiff>,
+}
+
+fn year_start_label(mode: YearStartMode) -> &'static str {
+    match mode {
+        YearStartMode::Lichun => "lichun",
+        YearStartMode::GregorianNewYear => "gregorian",
+    }
+}
+
+fn resolve_note(record: &Option<huangji_table::YearRecord>, year: i32) -> String {
+    if let Some(record) = record {
+        let note = format!("{} {}", record.dynasty.trim(), record.person.trim())
+            .trim()
+            .to_string();
+        if note.is_empty() {
+            format!("年表已命中 {} 年", year)
+        } else {
+            note
+        }
+    } else if let Some(coverage) = huangji_table::get_coverage() {
+        format!(
+            "年表未覆盖 {} 年（覆盖范围: {}-{}）",
+            year, coverage.min_year, coverage.max_year
+        )
+    } else {
+        format!("年表未覆盖 {} 年", year)
+    }
+}
+
+fn build_variant_from_algorithm(
+    source: &str,
+    year: i32,
+    algo_info: &algorithm::HuangjiInfo,
+    nian_ganzhi: &str,
+    mapping_record: Option<huangji_table::YearRecord>,
+    mapping_normalized: Option<huangji_table::NormalizedYearRecord>,
+) -> FortuneVariant {
+    FortuneVariant {
+        source: source.to_string(),
+        available: true,
+        yuan: algo_info.yuan.name.clone(),
+        hui: algo_info.hui.name.clone(),
+        yun: algo_info.yun.name.clone(),
+        shi: algo_info.shi.name.clone(),
+        xun: algo_info.xun.name.clone(),
+        nian_ganzhi: nian_ganzhi.to_string(),
+        hexagram_major: algo_info.year_gua.clone(),
+        note: resolve_note(&mapping_record, year),
+        period_info: Some(algo_info.clone()),
+        mapping_record,
+        mapping_record_normalized: mapping_normalized,
+    }
+}
+
+fn project_table_raw(base: &FortuneVariant) -> FortuneVariant {
+    let mut result = base.clone();
+    result.source = "table_raw".to_string();
+    result.available = result.mapping_record.is_some();
+    if let Some(record) = &result.mapping_record {
+        result.hexagram_major = record.nian_hexagram.clone();
+        if !record.ganzhi.trim().is_empty() {
+            result.nian_ganzhi = record.ganzhi.trim().to_string();
+        }
+        if let Some(normalized) = &result.mapping_record_normalized {
+            if let Some(hui_name) = &normalized.hui_name {
+                result.hui = hui_name.clone();
+            }
+            if let Some(yun_name) = &normalized.yun_name {
+                result.yun = yun_name.clone();
+            }
+            if let Some(shi_name) = &normalized.shi_name {
+                result.shi = shi_name.clone();
+            }
+            if let Some(xun_name) = &normalized.xun_name {
+                result.xun = xun_name.clone();
+            }
+        }
+        result.note = resolve_note(&Some(record.clone()), record.gregorian_year);
+    } else {
+        result.note = "table_raw unavailable for this year".to_string();
+    }
+    result
+}
+
+fn project_table_normalized(raw_variant: &FortuneVariant) -> FortuneVariant {
+    let mut result = raw_variant.clone();
+    result.source = "table_normalized".to_string();
+    result.available = raw_variant.available;
+
+    if let Some(normalized) = &result.mapping_record_normalized {
+        if let Some(hex) = &normalized.nian_hexagram {
+            result.hexagram_major = hex.clone();
+        }
+        if let Some(xun_name) = &normalized.xun_name {
+            result.xun = xun_name.clone();
+        }
+    } else {
+        result.note = "table_normalized unavailable for this year".to_string();
+    }
+    result
+}
+
+fn select_variant<'a>(
+    mode: CalcMode,
+    requested_primary: PrimaryMode,
+    algorithm_variant: &'a FortuneVariant,
+    table_variant: &'a FortuneVariant,
+) -> (&'a FortuneVariant, PrimaryMode) {
+    match mode {
+        CalcMode::Algorithm => (algorithm_variant, PrimaryMode::Algorithm),
+        CalcMode::Table => {
+            if table_variant.available {
+                (table_variant, PrimaryMode::Table)
+            } else {
+                (algorithm_variant, PrimaryMode::Algorithm)
+            }
+        }
+        CalcMode::Compare => match requested_primary {
+            PrimaryMode::Algorithm => (algorithm_variant, PrimaryMode::Algorithm),
+            PrimaryMode::Table => {
+                if table_variant.available {
+                    (table_variant, PrimaryMode::Table)
+                } else {
+                    (algorithm_variant, PrimaryMode::Algorithm)
+                }
+            }
+        },
+    }
+}
+
+fn calc_hexagram_code(hexagram_name: &str) -> Option<Vec<u8>> {
+    let canonical = huangji_table::normalize_hexagram_name(hexagram_name)
+        .unwrap_or_else(|| hexagram_name.to_string());
+    let (u, l) = algorithm::get_hexagram_struct(&canonical);
+    if canonical != "坤" && (u, l) == (0, 0) {
+        return None;
+    }
+    Some(vec![
+        (u >> 2) & 1,
+        (u >> 1) & 1,
+        u & 1,
+        (l >> 2) & 1,
+        (l >> 1) & 1,
+        l & 1,
+    ])
+}
+
+fn calc_flying_star(year: i32) -> String {
+    let mut star_val = (11 - (if year > 0 { year } else { year + 1 }) % 9) % 9;
+    if star_val == 0 {
+        star_val = 9;
+    }
+    if star_val < 0 {
+        star_val += 9;
+    }
+    let stars = [
+        "",
+        "一白贪狼",
+        "二黑巨门",
+        "三碧禄存",
+        "四绿文曲",
+        "五黄廉贞",
+        "六白武曲",
+        "七赤破军",
+        "八白左辅",
+        "九紫右弼",
+    ];
+    stars.get(star_val as usize).copied().unwrap_or("").to_string()
 }
 
 pub fn compute_fortune(req: &FortuneRequest) -> FortuneResponse {
-    // 用统一时间规则把 UTC 转换为经世年（无公元0年），避免 UTC 跨年导致的年界错误
+    let mode = req.mode.unwrap_or_default();
+    let requested_primary = req.primary.unwrap_or_default();
+    let year_start = req.year_start.unwrap_or_default();
+
+    // 用统一时间规则把 UTC 转换为经世年（无公元0年）
     let tz_offset_minutes = req.tz_offset_minutes.unwrap_or(480);
     let lon = req.lon.unwrap_or(116.4);
     let use_true_solar_time = req.use_true_solar_time.unwrap_or(false);
@@ -56,73 +326,137 @@ pub fn compute_fortune(req: &FortuneRequest) -> FortuneResponse {
         tz_offset_minutes,
         lon,
         use_true_solar_time,
-        YearStartMode::GregorianNewYear,
+        year_start,
     );
-    
-    // 1. Calculate Algorithmically (High Priority for Fortune)
+
     let algo_info = algorithm::get_hj_info(year);
-    
-    // 2. Fetch Data for Dynasty/Person (Supplemental)
-    let (dynasty_info, _xun_info, mapping_record) = if let Some(record) = data::get_year_record(year) {
-        let note = format!("{} {}", record.dynasty, record.person).trim().to_string();
-        let xun = record.xun_raw.replace("旬", "").trim().to_string();
-        (note, xun, Some(record))
+    let mapping_record = huangji_table::get_year_record(year);
+    let mapping_record_normalized = huangji_table::get_year_record_normalized(year);
+
+    let lunar_info =
+        lunar::compute_lunar(&req.datetime, tz_offset_minutes, lon, use_true_solar_time).ok();
+    let ganzhi = lunar_info
+        .as_ref()
+        .map(|l| l.ganzhi_year.clone())
+        .unwrap_or_else(|| "未知".to_string());
+
+    let algorithm_variant = build_variant_from_algorithm(
+        "algorithm",
+        year,
+        &algo_info,
+        &ganzhi,
+        mapping_record.clone(),
+        mapping_record_normalized.clone(),
+    );
+    let table_raw_variant = project_table_raw(&algorithm_variant);
+    let table_normalized_variant = project_table_normalized(&table_raw_variant);
+
+    let (selected, resolved_primary) = select_variant(
+        mode,
+        requested_primary,
+        &algorithm_variant,
+        &table_normalized_variant,
+    );
+
+    let next_yun = selected.period_info.as_ref().map(|info| info.yun.end_year + 1);
+    let next_shi = selected.period_info.as_ref().map(|info| info.shi.end_year + 1);
+    let next_xun = selected.period_info.as_ref().map(|info| info.xun.end_year + 1);
+
+    let diff = if table_normalized_variant.available {
+        FortuneDiff {
+            hexagram_major_diff: algorithm_variant.hexagram_major != table_normalized_variant.hexagram_major,
+            yun_diff: algorithm_variant.yun != table_normalized_variant.yun,
+            shi_diff: algorithm_variant.shi != table_normalized_variant.shi,
+            xun_diff: algorithm_variant.xun != table_normalized_variant.xun,
+            note: "algorithm vs table_normalized".to_string(),
+        }
     } else {
-        (format!("数据未覆盖 {} 年", year), "?".to_string(), None)
+        FortuneDiff {
+            hexagram_major_diff: false,
+            yun_diff: false,
+            shi_diff: false,
+            xun_diff: false,
+            note: "table_normalized unavailable for this year".to_string(),
+        }
     };
-    
-    // 3. Calculate Lunar/Ganzhi（按规则时间取本地年月日/时）
-    let lunar_info = lunar::compute_lunar(&req.datetime, tz_offset_minutes, lon, use_true_solar_time).ok();
-    let ganzhi = lunar_info.as_ref().map(|l| l.ganzhi_year.clone()).unwrap_or_else(|| "未知".to_string());
-
-    // 4. Calculate Hexagram Code (Binary)
-    // Structure: (upper, lower). Each is 3-bit integer.
-    // We want array of 6 bits, from TOP to BOTTOM.
-    // Upper: bit 2, 1, 0. Lower: bit 2, 1, 0.
-    let (u, l) = algorithm::get_hexagram_struct(&algo_info.year_gua);
-    // Upper trigram bits (2,1,0), then Lower trigram bits (2,1,0)
-    let hex_code = vec![
-        (u >> 2) & 1,
-        (u >> 1) & 1,
-        u & 1,
-        (l >> 2) & 1,
-        (l >> 1) & 1,
-        l & 1,
-    ];
-
-    // 5. Calculate Annual Flying Star (Nine Palace)
-    let mut star_val = (11 - (if year > 0 { year } else { year + 1 }) % 9) % 9;
-    if star_val == 0 { star_val = 9; }
-    if star_val < 0 { star_val += 9; } 
-    
-    let stars = ["", "一白贪狼", "二黑巨门", "三碧禄存", "四绿文曲", "五黄廉贞", "六白武曲", "七赤破军", "八白左辅", "九紫右弼"];
-    let flying_star = if (1..=9).contains(&star_val) {
-        stars[star_val as usize].to_string()
-    } else {
-        String::new()
-    };
-
-    let next_yun = algo_info.yun.end_year + 1;
-    let next_shi = algo_info.shi.end_year + 1;
-    let next_xun = algo_info.xun.end_year + 1;
 
     FortuneResponse {
-        yuan: algo_info.yuan.name.clone(),
-        hui: algo_info.hui.name.clone(),
-        yun: algo_info.yun.name.clone(),
-        shi: algo_info.shi.name.clone(),
-        xun: algo_info.xun.name.clone(),
-        nian_ganzhi: ganzhi,
-        hexagram_major: algo_info.year_gua.clone(),
+        yuan: selected.yuan.clone(),
+        hui: selected.hui.clone(),
+        yun: selected.yun.clone(),
+        shi: selected.shi.clone(),
+        xun: selected.xun.clone(),
+        nian_ganzhi: selected.nian_ganzhi.clone(),
+        hexagram_major: selected.hexagram_major.clone(),
         hexagram_minor: None,
-        hexagram_code: Some(hex_code),
-        flying_star: Some(flying_star),
-        period_info: Some(algo_info),
+        hexagram_code: calc_hexagram_code(&selected.hexagram_major),
+        flying_star: Some(calc_flying_star(year)),
+        period_info: selected.period_info.clone(),
+        next_yun_start_year: next_yun,
+        next_shi_start_year: next_shi,
+        next_xun_start_year: next_xun,
         lunar: lunar_info,
-        note: dynasty_info,
-        mapping_record,
-        next_yun_start_year: Some(next_yun),
-        next_shi_start_year: Some(next_shi),
-        next_xun_start_year: Some(next_xun),
+        note: selected.note.clone(),
+        mapping_record: selected.mapping_record.clone(),
+        calc_meta: Some(FortuneCalcMeta {
+            mode,
+            primary: resolved_primary,
+            year_start: year_start_label(year_start).to_string(),
+            hj_year: year,
+        }),
+        variants: Some(FortuneVariants {
+            algorithm: algorithm_variant,
+            table_raw: table_raw_variant,
+            table_normalized: table_normalized_variant,
+        }),
+        diff: Some(diff),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    #[test]
+    fn test_compute_fortune_default_compare_has_table_variant() {
+        let req = FortuneRequest {
+            datetime: Utc.with_ymd_and_hms(2026, 6, 1, 0, 0, 0).unwrap(),
+            tz_offset_minutes: Some(480),
+            lon: Some(116.4),
+            use_true_solar_time: Some(false),
+            mode: None,
+            year_start: None,
+            primary: None,
+        };
+        let resp = compute_fortune(&req);
+        assert!(resp.calc_meta.is_some());
+        assert!(resp.variants.is_some());
+        let variants = resp.variants.expect("variants should exist");
+        assert!(variants.table_raw.available, "2026 should hit table data");
+        assert!(variants.table_normalized.available, "2026 should hit table data");
+    }
+
+    #[test]
+    fn test_compute_fortune_lichun_year_boundary() {
+        let before = FortuneRequest {
+            datetime: Utc.with_ymd_and_hms(2025, 2, 3, 12, 0, 0).unwrap(),
+            tz_offset_minutes: Some(480),
+            lon: Some(116.4),
+            use_true_solar_time: Some(false),
+            mode: Some(CalcMode::Algorithm),
+            year_start: Some(YearStartMode::Lichun),
+            primary: Some(PrimaryMode::Algorithm),
+        };
+        let after = FortuneRequest {
+            datetime: Utc.with_ymd_and_hms(2025, 2, 5, 12, 0, 0).unwrap(),
+            ..before.clone()
+        };
+
+        let before_resp = compute_fortune(&before);
+        let after_resp = compute_fortune(&after);
+
+        assert_eq!(before_resp.calc_meta.as_ref().map(|meta| meta.hj_year), Some(2024));
+        assert_eq!(after_resp.calc_meta.as_ref().map(|meta| meta.hj_year), Some(2025));
     }
 }

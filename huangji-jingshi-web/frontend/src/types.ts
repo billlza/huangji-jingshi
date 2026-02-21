@@ -68,6 +68,55 @@ export interface FortuneResponse {
     shi_raw: string;
     xun_raw: string;
   };
+  calc_meta?: {
+    mode: 'algorithm' | 'table' | 'compare';
+    primary: 'algorithm' | 'table';
+    year_start: 'lichun' | 'gregorian';
+    hj_year: number;
+  };
+  variants?: {
+    algorithm: FortuneVariant;
+    table_raw: FortuneVariant;
+    table_normalized: FortuneVariant;
+  };
+  diff?: {
+    hexagram_major_diff: boolean;
+    yun_diff: boolean;
+    shi_diff: boolean;
+    xun_diff: boolean;
+    note: string;
+  };
+}
+
+export interface FortuneVariant {
+  source: string;
+  available: boolean;
+  yuan: string;
+  hui: string;
+  yun: string;
+  shi: string;
+  xun: string;
+  nian_ganzhi: string;
+  hexagram_major: string;
+  note: string;
+  mapping_record?: FortuneResponse['mapping_record'] | null;
+  mapping_record_normalized?: {
+    gregorian_year: number;
+    ganzhi: string;
+    nian_hexagram_raw: string;
+    nian_hexagram?: string | null;
+    dynasty: string;
+    person: string;
+    yuan_raw: string;
+    hui_raw: string;
+    yun_raw: string;
+    shi_raw: string;
+    xun_raw: string;
+    hui_name?: string | null;
+    yun_name?: string | null;
+    shi_name?: string | null;
+    xun_name?: string | null;
+  } | null;
 }
 
 export interface SkyResponse {

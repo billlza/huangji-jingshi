@@ -5,8 +5,18 @@ interface ControlPanelProps {
     datetime: string;
     lat: number;
     lon: number;
+    mode: 'algorithm' | 'table' | 'compare';
+    yearStart: 'lichun' | 'gregorian';
+    primary: 'algorithm' | 'table';
   };
-  onCalculate: (params: { datetime: string; lat: number; lon: number }) => void;
+  onCalculate: (params: {
+    datetime: string;
+    lat: number;
+    lon: number;
+    mode: 'algorithm' | 'table' | 'compare';
+    yearStart: 'lichun' | 'gregorian';
+    primary: 'algorithm' | 'table';
+  }) => void;
   isLoading: boolean;
 }
 
@@ -58,6 +68,15 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
   const [isLive, setIsLive] = useState(initialLive);
   const [lat, setLat] = useState(initialParams.lat.toString());
   const [lon, setLon] = useState(initialParams.lon.toString());
+  const [mode, setMode] = useState<'algorithm' | 'table' | 'compare'>(
+    initialParams.mode || 'compare',
+  );
+  const [yearStart, setYearStart] = useState<'lichun' | 'gregorian'>(
+    initialParams.yearStart || 'lichun',
+  );
+  const [primary, setPrimary] = useState<'algorithm' | 'table'>(
+    initialParams.primary || 'algorithm',
+  );
   const [error, setError] = useState<string | null>(null);
   const [locationStatus, setLocationStatus] = useState<string>('');
 
@@ -145,6 +164,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
       datetime: localToUtcIso(localDatetime),
       lat: newLat,
       lon: newLon,
+      mode,
+      yearStart,
+      primary,
     });
 
     setTimeout(() => setLocationStatus(''), 5000);
@@ -217,6 +239,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
       datetime: localToUtcIso(localDatetime),
       lat: latNum,
       lon: lonNum,
+      mode,
+      yearStart,
+      primary,
     });
   };
 
@@ -239,8 +264,30 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
     if (isNaN(latNum) || latNum < -90 || latNum > 90) return;
     if (isNaN(lonNum) || lonNum < -180 || lonNum > 180) return;
     // P1 修复：使用显式 UTC+8 转换
-    onCalculate({ datetime: localToUtcIso(localDatetime), lat: latNum, lon: lonNum });
-  }, [localDatetime, isLive, lat, lon, onCalculate]);
+    onCalculate({
+      datetime: localToUtcIso(localDatetime),
+      lat: latNum,
+      lon: lonNum,
+      mode,
+      yearStart,
+      primary,
+    });
+  }, [localDatetime, isLive, lat, lon, mode, yearStart, primary, onCalculate]);
+
+  useEffect(() => {
+    const latNum = parseFloat(lat);
+    const lonNum = parseFloat(lon);
+    if (isNaN(latNum) || latNum < -90 || latNum > 90) return;
+    if (isNaN(lonNum) || lonNum < -180 || lonNum > 180) return;
+    onCalculate({
+      datetime: localToUtcIso(localDatetime),
+      lat: latNum,
+      lon: lonNum,
+      mode,
+      yearStart,
+      primary,
+    });
+  }, [mode, yearStart, primary, onCalculate]);
 
   return (
     <div className="space-y-6">
@@ -287,6 +334,49 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
             手动更新时间 (Update Time)
           </button>
         )}
+      </div>
+
+      {/* Rule Strategy */}
+      <div className="space-y-3 pt-2 border-t border-white/10">
+        <label className="block text-xs text-gold/70 uppercase tracking-widest">计算口径</label>
+        <div className="grid grid-cols-1 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 mb-1.5 block">年份边界</label>
+            <select
+              value={yearStart}
+              onChange={(e) => setYearStart(e.target.value as 'lichun' | 'gregorian')}
+              className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white text-sm focus:border-gold/50 focus:ring-1 focus:ring-gold/50 focus:outline-none transition-all"
+            >
+              <option value="lichun">立春（默认）</option>
+              <option value="gregorian">元旦</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 mb-1.5 block">主模式</label>
+            <select
+              value={mode}
+              onChange={(e) => setMode(e.target.value as 'algorithm' | 'table' | 'compare')}
+              className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white text-sm focus:border-gold/50 focus:ring-1 focus:ring-gold/50 focus:outline-none transition-all"
+            >
+              <option value="compare">对照（默认）</option>
+              <option value="algorithm">公式</option>
+              <option value="table">年表</option>
+            </select>
+          </div>
+          {mode === 'compare' && (
+            <div>
+              <label className="text-[10px] text-gray-500 mb-1.5 block">对照主值</label>
+              <select
+                value={primary}
+                onChange={(e) => setPrimary(e.target.value as 'algorithm' | 'table')}
+                className="w-full bg-black/30 border border-white/10 rounded-lg p-2.5 text-white text-sm focus:border-gold/50 focus:ring-1 focus:ring-gold/50 focus:outline-none transition-all"
+              >
+                <option value="algorithm">公式</option>
+                <option value="table">年表</option>
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Location Input */}

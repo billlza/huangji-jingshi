@@ -1,5 +1,5 @@
 import { ChevronLeft } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BaziCard from '../components/BaziCard';
 import ControlPanel from '../components/ControlPanel';
@@ -34,7 +34,10 @@ export default function Tools() {
     // Default to Beijing if not provided
     const lat = parseFloat(search.get('lat') || '39.9042');
     const lon = parseFloat(search.get('lon') || '116.4074');
-    return { datetime: dt, lat, lon };
+    const mode = (search.get('mode') || 'compare') as 'algorithm' | 'table' | 'compare';
+    const yearStart = (search.get('yearStart') || 'lichun') as 'lichun' | 'gregorian';
+    const primary = (search.get('primary') || 'algorithm') as 'algorithm' | 'table';
+    return { datetime: dt, lat, lon, mode, yearStart, primary };
   });
   const [compareMode, setCompareMode] = useState(false);
   const [compareDatetime, setCompareDatetime] = useState<string | null>(null);
@@ -55,6 +58,9 @@ export default function Tools() {
     sp.set('datetime', params.datetime);
     sp.set('lat', params.lat.toString());
     sp.set('lon', params.lon.toString());
+    sp.set('mode', params.mode);
+    sp.set('yearStart', params.yearStart);
+    sp.set('primary', params.primary);
     if (compareMode) {
       sp.set('cmp', '1');
       if (compareDatetime) sp.set('cmp_dt', compareDatetime);
@@ -74,6 +80,9 @@ export default function Tools() {
           datetime: params.datetime,
           lat: params.lat.toString(),
           lon: params.lon.toString(),
+          mode: params.mode,
+          yearStart: params.yearStart,
+          primary: params.primary,
         });
 
         const res = await fetch(`${API_BASE}/api/sky-and-fortune?${q}`, {
@@ -91,6 +100,9 @@ export default function Tools() {
             datetime: compareDatetime,
             lat: params.lat.toString(),
             lon: params.lon.toString(),
+            mode: params.mode,
+            yearStart: params.yearStart,
+            primary: params.primary,
           });
           const res2 = await fetch(`${API_BASE}/api/sky-and-fortune?${q2}`, {
             signal: controller.signal,
@@ -123,9 +135,28 @@ export default function Tools() {
     };
   }, [params, compareMode, compareDatetime, API_BASE]);
 
-  const handleCalculate = (newParams: { datetime: string; lat: number; lon: number }) => {
-    setParams(newParams);
-  };
+  const handleCalculate = useCallback(
+    (newParams: {
+      datetime: string;
+      lat: number;
+      lon: number;
+      mode: 'algorithm' | 'table' | 'compare';
+      yearStart: 'lichun' | 'gregorian';
+      primary: 'algorithm' | 'table';
+    }) => {
+      setParams((prev) => {
+        const unchanged =
+          prev.datetime === newParams.datetime &&
+          prev.lat === newParams.lat &&
+          prev.lon === newParams.lon &&
+          prev.mode === newParams.mode &&
+          prev.yearStart === newParams.yearStart &&
+          prev.primary === newParams.primary;
+        return unchanged ? prev : newParams;
+      });
+    },
+    [],
+  );
 
   const handleTimelineYearChange = (year: number) => {
     const current = safeDate(params.datetime);
@@ -288,6 +319,11 @@ export default function Tools() {
                 currentDatetime={params.datetime}
                 onYearChange={handleTimelineYearChange}
                 mapping={data?.fortune?.mapping_record}
+                mode={params.mode}
+                yearStart={params.yearStart}
+                primary={params.primary}
+                tzOffsetMinutes={Math.round(timezoneOffset * 60)}
+                lon={params.lon}
               />
             </div>
 

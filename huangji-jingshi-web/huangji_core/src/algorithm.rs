@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use once_cell::sync::Lazy;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeriodInfo {
@@ -91,25 +93,36 @@ const HEXAGRAM_TABLE: [(u8, u8, &str); 64] = [
     (0, 6, "观"), (0, 2, "比"), (0, 4, "剥"), (0, 0, "坤"),
 ];
 
+static HEX_NAME_BY_PAIR: Lazy<HashMap<(u8, u8), &'static str>> = Lazy::new(|| {
+    HEXAGRAM_TABLE
+        .iter()
+        .map(|(u, l, name)| ((*u, *l), *name))
+        .collect()
+});
+
+static HEX_PAIR_BY_NAME: Lazy<HashMap<&'static str, (u8, u8)>> = Lazy::new(|| {
+    HEXAGRAM_TABLE
+        .iter()
+        .map(|(u, l, name)| (*name, (*u, *l)))
+        .collect()
+});
+
 // P0 修复 #3: 卦名 ↔ upper/lower 正确映射
+fn get_hexagram_name_str(upper: u8, lower: u8) -> &'static str {
+    HEX_NAME_BY_PAIR
+        .get(&(upper, lower))
+        .copied()
+        .unwrap_or("未知")
+}
+
 /// (upper, lower) → 卦名
 pub fn get_hexagram_name(upper: u8, lower: u8) -> String {
-    for &(u, l, name) in &HEXAGRAM_TABLE {
-        if u == upper && l == lower {
-            return name.to_string();
-        }
-    }
-    "未知".to_string()
+    get_hexagram_name_str(upper, lower).to_string()
 }
 
 /// 卦名 → (upper, lower)
 pub fn get_hexagram_struct(name: &str) -> (u8, u8) {
-    for &(u, l, n) in &HEXAGRAM_TABLE {
-        if n == name {
-            return (u, l);
-        }
-    }
-    (0, 0)
+    HEX_PAIR_BY_NAME.get(name).copied().unwrap_or((0, 0))
 }
 
 pub const FUXI_SEQ: [&str; 64] = [
@@ -125,9 +138,9 @@ pub const FUXI_SEQ: [&str; 64] = [
 
 const SKIP_ZHE: [&str; 4] = ["乾", "坤", "坎", "离"];
 
-pub fn get_zheng_gua_seq() -> Vec<String> {
+static ZHENG_GUA_SEQ: Lazy<Vec<String>> = Lazy::new(|| {
     let mut seq = Vec::new();
-    let start_idx = FUXI_SEQ.iter().position(|&x| x == "复").unwrap();
+    let start_idx = FUXI_SEQ.iter().position(|&x| x == "复").unwrap_or(0);
     for i in 0..64 {
         let idx = (start_idx + i) % 64;
         let name = FUXI_SEQ[idx];
@@ -136,6 +149,18 @@ pub fn get_zheng_gua_seq() -> Vec<String> {
         }
     }
     seq
+});
+
+static YEAR_GUA_SEQ: Lazy<Vec<String>> = Lazy::new(|| {
+    FUXI_SEQ
+        .iter()
+        .filter(|&&n| !SKIP_ZHE.contains(&n))
+        .map(|&s| s.to_string())
+        .collect()
+});
+
+pub fn get_zheng_gua_seq() -> Vec<String> {
+    ZHENG_GUA_SEQ.clone()
 }
 
 #[derive(Debug, Clone)]
@@ -164,7 +189,7 @@ impl Hexagram {
     }
     
     fn name(&self) -> String {
-        get_hexagram_name(self.upper, self.lower)
+        get_hexagram_name_str(self.upper, self.lower).to_string()
     }
 }
 
@@ -243,7 +268,7 @@ pub fn get_hj_info(hj_year: i32) -> HuangjiInfo {
     let yun_end_year = acc_to_year(yun_start_acc + 360 - 1);
     
     // 运卦计算
-    let zheng_gua_seq = get_zheng_gua_seq();
+    let zheng_gua_seq = &*ZHENG_GUA_SEQ;
     let zheng_gua_idx = (yun_global_index.rem_euclid(360) / 6) as usize;  // 每6运一个正卦
     let zheng_gua_name = &zheng_gua_seq[zheng_gua_idx % zheng_gua_seq.len()];
     let zheng_hex = Hexagram::from_name(zheng_gua_name);
@@ -294,19 +319,14 @@ pub fn get_hj_info(hj_year: i32) -> HuangjiInfo {
     };
     
     // 6. 年卦
-    let val_seq: Vec<String> = FUXI_SEQ.iter()
-        .filter(|&&n| !SKIP_ZHE.contains(&n))
-        .map(|&s| s.to_string())
-        .collect();
-    
     let anchor_year = 1984;
     let anchor_name = "鼎";
-    let anchor_idx = val_seq.iter().position(|x| x == anchor_name).unwrap_or(0);
+    let anchor_idx = YEAR_GUA_SEQ.iter().position(|x| x == anchor_name).unwrap_or(0);
     
     let year_offset = hj_year - anchor_year;
-    let len = val_seq.len() as i32;
+    let len = YEAR_GUA_SEQ.len() as i32;
     let target_idx = (anchor_idx as i32 + year_offset).rem_euclid(len);
-    let year_gua = val_seq[target_idx as usize].clone();
+    let year_gua = YEAR_GUA_SEQ[target_idx as usize].clone();
     
     HuangjiInfo {
         yuan: yuan_info,
@@ -345,7 +365,7 @@ pub fn get_timeline_info(hj_year: i32) -> TimelineData {
     // 3. Yun List (30运)
     let hui_index = t.div_euclid(10800);
     let hui_start_acc = EPOCH_ACC + hui_index * 10800;
-    let zheng_gua_seq = get_zheng_gua_seq();
+    let zheng_gua_seq = &*ZHENG_GUA_SEQ;
     
     let yun_list: Vec<PeriodInfo> = (0..30).map(|i| {
         let yun_global = hui_index * 30 + i;

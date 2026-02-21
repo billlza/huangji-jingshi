@@ -7,9 +7,12 @@
 //! - 注意：与 JS Date.getTimezoneOffset() 符号相反！
 
 use chrono::{DateTime, Utc, FixedOffset, Datelike, Duration};
+use crate::astro::solar::{solar_position, utc_to_jd};
+use serde::{Deserialize, Serialize};
 
 /// 岁首模式
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum YearStartMode {
     /// 公历岁首模式：以公历 1 月 1 日为年份切换点
     GregorianNewYear,
@@ -19,7 +22,15 @@ pub enum YearStartMode {
 
 impl Default for YearStartMode {
     fn default() -> Self {
-        YearStartMode::GregorianNewYear
+        YearStartMode::Lichun
+    }
+}
+
+fn chrono_year_to_historical(year: i32) -> i32 {
+    if year <= 0 {
+        year - 1
+    } else {
+        year
     }
 }
 
@@ -83,30 +94,21 @@ pub fn datetime_to_hj_year(
     rule_dt: DateTime<FixedOffset>,
     mode: YearStartMode,
 ) -> i32 {
+    let year = rule_dt.year();
     match mode {
         YearStartMode::GregorianNewYear => {
-            // 公历岁首模式：直接使用公历年份
-            let year = rule_dt.year();
-            // 公历年份直接对应经世年（公历也没有 0 年）
-            // 但 chrono 使用天文年份（有 0 年），需要转换
-            // chrono: ..., -2, -1, 0, 1, 2, ...
-            // 历史纪年: ..., -2, -1, 1, 2, ... (无 0 年)
-            if year <= 0 {
-                year - 1  // 0 -> -1, -1 -> -2, etc.
-            } else {
-                year
-            }
+            chrono_year_to_historical(year)
         }
         YearStartMode::Lichun => {
-            // 立春岁首模式（预留）
-            // TODO: 根据立春时刻判断年份归属
-            // 暂时使用公历岁首模式
-            let year = rule_dt.year();
-            if year <= 0 {
+            let utc_dt = rule_dt.with_timezone(&Utc);
+            let jd = utc_to_jd(&utc_dt);
+            let solar_lon = solar_position(jd).ecliptic_longitude;
+            let adjusted = if (270.0..315.0).contains(&solar_lon) {
                 year - 1
             } else {
                 year
-            }
+            };
+            chrono_year_to_historical(adjusted)
         }
     }
 }
@@ -184,6 +186,25 @@ mod tests {
         // 2 BC (chrono year -1)
         let dt = offset.with_ymd_and_hms(-1, 6, 15, 12, 0, 0).unwrap();
         assert_eq!(datetime_to_hj_year(dt, YearStartMode::GregorianNewYear), -2);
+    }
+
+    #[test]
+    fn test_datetime_to_hj_year_lichun_boundary() {
+        // 2025-02-03 12:00 UTC，立春前，按立春岁首应归上一年（甲辰）
+        let dt_before = Utc.with_ymd_and_hms(2025, 2, 3, 12, 0, 0).unwrap();
+        let rule_before = to_rule_datetime(dt_before, 480, 116.4, false);
+        assert_eq!(
+            datetime_to_hj_year(rule_before, YearStartMode::Lichun),
+            2024
+        );
+
+        // 2025-02-05 12:00 UTC，立春后，按立春岁首应归当年（乙巳）
+        let dt_after = Utc.with_ymd_and_hms(2025, 2, 5, 12, 0, 0).unwrap();
+        let rule_after = to_rule_datetime(dt_after, 480, 116.4, false);
+        assert_eq!(
+            datetime_to_hj_year(rule_after, YearStartMode::Lichun),
+            2025
+        );
     }
     
     #[test]

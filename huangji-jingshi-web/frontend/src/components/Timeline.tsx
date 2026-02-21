@@ -6,6 +6,11 @@ interface TimelineProps {
   currentDatetime: string;
   onYearChange: (year: number) => void;
   mapping?: FortuneResponse['mapping_record'];
+  mode: 'algorithm' | 'table' | 'compare';
+  yearStart: 'lichun' | 'gregorian';
+  primary: 'algorithm' | 'table';
+  tzOffsetMinutes?: number;
+  lon?: number;
 }
 
 const Timeline: React.FC<TimelineProps> = ({
@@ -13,6 +18,11 @@ const Timeline: React.FC<TimelineProps> = ({
   currentDatetime,
   onYearChange,
   mapping,
+  mode,
+  yearStart,
+  primary,
+  tzOffsetMinutes,
+  lon,
 }) => {
   const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
   const [data, setData] = useState<TimelineData | null>(null);
@@ -28,10 +38,15 @@ const Timeline: React.FC<TimelineProps> = ({
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Assuming the datetime is for the start of the year for simplicity in this view
-        const response = await fetch(
-          `${API_BASE}/api/timeline?datetime=${currentYear}-01-01T12:00:00Z`,
-        );
+        const query = new URLSearchParams({
+          datetime: `${currentYear}-01-01T12:00:00Z`,
+          mode,
+          yearStart,
+          primary,
+          tzOffsetMinutes: String(tzOffsetMinutes ?? 480),
+          lon: String(lon ?? 116.4),
+        });
+        const response = await fetch(`${API_BASE}/api/timeline?${query}`);
         if (!response.ok) throw new Error('Failed to fetch timeline');
         const json = await response.json();
         setData(json);
@@ -45,7 +60,7 @@ const Timeline: React.FC<TimelineProps> = ({
     };
 
     fetchData();
-  }, [currentYear, API_BASE]);
+  }, [currentYear, API_BASE, mode, yearStart, primary, tzOffsetMinutes, lon]);
 
   useEffect(() => {
     if (!data) return;
@@ -53,9 +68,17 @@ const Timeline: React.FC<TimelineProps> = ({
     const end = data.current.hui.end_year;
     const run = async () => {
       try {
-        const r = await fetch(`${API_BASE}/api/mapping/get?year=${start}`);
+        const query = new URLSearchParams({
+          year: String(start),
+          mode,
+          yearStart,
+          primary,
+        });
+        const r = await fetch(`${API_BASE}/api/mapping/get?${query}`);
         const j = await r.json();
-        const hex = j.record?.nian_hexagram as string | undefined;
+        const hex =
+          (j.record_normalized?.nian_hexagram as string | undefined) ||
+          (j.record_raw?.nian_hexagram as string | undefined);
         if (hex) setHuiDoc(`${hex}（${start}–${end}）`);
         else setHuiDoc(null);
       } catch {
@@ -63,7 +86,7 @@ const Timeline: React.FC<TimelineProps> = ({
       }
     };
     run();
-  }, [data, API_BASE]);
+  }, [data, API_BASE, mode, yearStart, primary]);
 
   useEffect(() => {
     if (!data) return;
@@ -339,8 +362,9 @@ const Timeline: React.FC<TimelineProps> = ({
                   <p className="text-xs text-gray-600 mt-1 leading-relaxed">
                     宇宙的大月。共12会（子至亥）。
                     <br />
-                    我们处于<span className="text-cyan-600 font-medium">“午会”</span>
-                    ，正如正午时分，是人类文明最极盛、最光明的黄金时期。
+                    当前处于
+                    <span className="text-cyan-600 font-medium">“{data.current.hui.name}会”</span>（
+                    {data.current.hui.start_year}–{data.current.hui.end_year}）。
                   </p>
                 </div>
               </li>
@@ -353,8 +377,11 @@ const Timeline: React.FC<TimelineProps> = ({
                   <p className="text-xs text-gray-600 mt-1 leading-relaxed">
                     宇宙的大日。一运360年，对应历史上大的朝代兴衰周期。
                     <br />
-                    我们处于<span className="text-emerald-600 font-medium">“姤运”</span>
-                    （1744-2103），阴长阳消之始。
+                    当前处于
+                    <span className="text-emerald-600 font-medium">
+                      “{data.current.yun.name}运”
+                    </span>
+                    （{data.current.yun.start_year}–{data.current.yun.end_year}）。
                   </p>
                 </div>
               </li>
@@ -367,8 +394,9 @@ const Timeline: React.FC<TimelineProps> = ({
                   <p className="text-xs text-gray-600 mt-1 leading-relaxed">
                     古语“三十年为一世”，代表一代人的时间跨度。
                     <br />
-                    我们处于<span className="text-amber-600 font-medium">“鼎世”</span>
-                    （2014-2043），革故鼎新，去旧生新。
+                    当前处于
+                    <span className="text-amber-600 font-medium">“{data.current.shi.name}世”</span>
+                    （{data.current.shi.start_year}–{data.current.shi.end_year}）。
                   </p>
                 </div>
               </li>
