@@ -51,6 +51,14 @@ const LEVEL_META: Record<
     colorBar: string;
   }
 > = {
+  yuan: {
+    label: '元',
+    enLabel: 'YUAN',
+    colorText: 'text-gold',
+    colorSoftBg: 'bg-gold/10',
+    colorBorder: 'border-gold/30',
+    colorBar: 'bg-gold',
+  },
   hui: {
     label: '会',
     enLabel: 'ERA',
@@ -89,6 +97,8 @@ const XUN_NAMES = ['甲子', '甲戌', '甲申'];
 
 function getListByLevel(data: TimelineResponse, level: TimelineLevel): PeriodInfo[] {
   switch (level) {
+    case 'yuan':
+      return data.yuan_list;
     case 'hui':
       return data.hui_list;
     case 'yun':
@@ -104,6 +114,8 @@ function getListByLevel(data: TimelineResponse, level: TimelineLevel): PeriodInf
 
 function getCurrentByLevel(data: TimelineResponse, level: TimelineLevel): PeriodInfo {
   switch (level) {
+    case 'yuan':
+      return data.current.yuan;
     case 'hui':
       return data.current.hui;
     case 'yun':
@@ -129,6 +141,7 @@ function periodToSelected(level: TimelineLevel, period: PeriodInfo): SelectedNod
 }
 
 function formatNodeName(level: TimelineLevel, name: string): string {
+  if (level === 'yuan') return `${name}元`;
   if (level === 'hui') return `${name}会`;
   if (level === 'yun') return `${name}运`;
   if (level === 'shi') return `${name}世`;
@@ -453,7 +466,15 @@ const Timeline: React.FC<TimelineProps> = ({
 
     const typeLabel = LEVEL_META[level].label;
     const spanLabel =
-      level === 'hui' ? '10800年' : level === 'yun' ? '360年' : level === 'shi' ? '30年' : '10年';
+      level === 'yuan'
+        ? '129600年'
+        : level === 'hui'
+          ? '10800年'
+          : level === 'yun'
+            ? '360年'
+            : level === 'shi'
+              ? '30年'
+              : '10年';
 
     return (
       <div className="mb-6" key={level}>
@@ -843,6 +864,7 @@ const Timeline: React.FC<TimelineProps> = ({
 
       <div className="xl:grid xl:grid-cols-10 xl:gap-5">
         <div className="space-y-2 xl:col-span-7">
+          {renderRow('元 (Yuan)', 'yuan', data.yuan_list, data.current.yuan.index, 'bg-gold')}
           {renderRow('会 (Era)', 'hui', data.hui_list, data.current.hui.index, 'bg-cyan-500')}
           {renderRow('运 (Cycle)', 'yun', data.yun_list, data.current.yun.index, 'bg-emerald-500')}
           {renderRow(

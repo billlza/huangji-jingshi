@@ -40,7 +40,7 @@ export interface TimelineData {
   xun_list: PeriodInfo[];
 }
 
-export type TimelineLevel = 'hui' | 'yun' | 'shi' | 'xun';
+export type TimelineLevel = 'yuan' | 'hui' | 'yun' | 'shi' | 'xun';
 
 export interface FortuneResponse {
   yuan: string;
