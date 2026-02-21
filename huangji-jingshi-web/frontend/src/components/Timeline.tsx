@@ -528,13 +528,15 @@ const Timeline: React.FC<TimelineProps> = ({
                     {formatNodeName(level, item.name)}
                   </span>
 
+                  <span
+                    className={`text-[8px] font-mono truncate ${isActive ? 'text-gray-300' : 'text-gray-600 group-hover:text-gray-400'}`}
+                  >
+                    {item.start_year}-{item.end_year}
+                  </span>
+
                   <span className="text-[9px] text-gray-600 font-mono absolute bottom-1 right-2 opacity-50 group-hover:opacity-100">
                     {item.index}
                   </span>
-
-                  {isActive && (
-                    <div className="text-[9px] text-gray-400 font-mono mt-1">{item.start_year}</div>
-                  )}
 
                   {renderEvents(item)}
                 </div>
