@@ -458,7 +458,12 @@ const Timeline: React.FC<TimelineProps> = ({
 
   const handleSelectPeriod = (level: TimelineLevel, item: PeriodInfo) => {
     setSelectedNode(periodToSelected(level, item));
-    onYearChange(getCenterYear(item));
+    const currentAtLevel = getCurrentByLevel(data, level);
+    const isCurrentPeriod =
+      currentAtLevel.index === item.index && currentAtLevel.start_year === item.start_year;
+    if (!isCurrentPeriod) {
+      onYearChange(getCenterYear(item));
+    }
   };
 
   const handleTransitionJump = (item: TransitionItem) => {
