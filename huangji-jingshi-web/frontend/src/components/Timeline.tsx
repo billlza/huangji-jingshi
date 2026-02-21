@@ -148,6 +148,14 @@ function formatNodeName(level: TimelineLevel, name: string): string {
   return `${name}旬`;
 }
 
+function formatYearRange(startYear: number, endYear: number): string {
+  return `${startYear} – ${endYear}`;
+}
+
+function getCenterYear(period: PeriodInfo): number {
+  return Math.floor((period.start_year + period.end_year) / 2);
+}
+
 function toTzLabel(offsetMinutes: number): string {
   const sign = offsetMinutes >= 0 ? '+' : '-';
   const absMinutes = Math.abs(offsetMinutes);
@@ -430,7 +438,7 @@ const Timeline: React.FC<TimelineProps> = ({
 
   const handleSelectPeriod = (level: TimelineLevel, item: PeriodInfo) => {
     setSelectedNode(periodToSelected(level, item));
-    onYearChange(item.start_year);
+    onYearChange(getCenterYear(item));
   };
 
   const handleTransitionJump = (item: TransitionItem) => {
@@ -552,7 +560,7 @@ const Timeline: React.FC<TimelineProps> = ({
                   <span
                     className={`text-[8px] font-mono truncate ${isActive ? 'text-gray-300' : 'text-gray-600 group-hover:text-gray-400'}`}
                   >
-                    {item.start_year}-{item.end_year}
+                    {formatYearRange(item.start_year, item.end_year)}
                   </span>
 
                   <span className="text-[9px] text-gray-600 font-mono absolute bottom-1 right-2 opacity-50 group-hover:opacity-100">
@@ -570,7 +578,7 @@ const Timeline: React.FC<TimelineProps> = ({
                     <div className="text-[10px] text-gray-200 text-center">
                       {mapping?.yun_raw
                         ? mapping.yun_raw
-                        : `${item.name}（${item.start_year}-${item.end_year}）`}
+                        : `${item.name}（${formatYearRange(item.start_year, item.end_year)}）`}
                     </div>
                   )}
                   {level === 'hui' && (

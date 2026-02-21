@@ -80,6 +80,29 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ initialParams, onCalculate,
   const [error, setError] = useState<string | null>(null);
   const [locationStatus, setLocationStatus] = useState<string>('');
 
+  useEffect(() => {
+    const nextDate = new Date(initialParams.datetime);
+    if (Number.isNaN(nextDate.getTime())) return;
+
+    const nextLocalDatetime = utcIsoToLocal(initialParams.datetime);
+    const nextIsLive = Math.abs(nextDate.getTime() - Date.now()) <= 60000;
+
+    setLocalDatetime(nextLocalDatetime);
+    setIsLive(nextIsLive);
+    setLat(initialParams.lat.toString());
+    setLon(initialParams.lon.toString());
+    setMode(initialParams.mode || 'compare');
+    setYearStart(initialParams.yearStart || 'lichun');
+    setPrimary(initialParams.primary || 'algorithm');
+  }, [
+    initialParams.datetime,
+    initialParams.lat,
+    initialParams.lon,
+    initialParams.mode,
+    initialParams.yearStart,
+    initialParams.primary,
+  ]);
+
   // Helper retained above
 
   // Live clock effect
