@@ -425,7 +425,6 @@ struct BaziQuery {
     /// 时区偏移（分钟），东为正 UTC+8=+480, 西为负 UTC-5=-300
     /// 注意：与 JS Date.getTimezoneOffset() 符号相反！
     #[serde(rename = "tzOffsetMinutes")]
-    #[allow(dead_code)]
     tz_offset_minutes: Option<i32>,
     #[allow(dead_code)]
     lat: Option<f64>, // 保留用于地方时校正
@@ -927,23 +926,46 @@ async fn get_bazi(
         params.lon
     );
 
+    let tz_offset_minutes = params.tz_offset_minutes.unwrap_or(480);
+    let fixed_offset = chrono::FixedOffset::east_opt(tz_offset_minutes * 60)
+        .unwrap_or_else(|| chrono::FixedOffset::east_opt(8 * 3600).expect("valid UTC+8 offset"));
+
     // 解析日期时间 - 解析失败直接返回 400，绝不 fallback
-    let datetime_utc = chrono::DateTime::parse_from_rfc3339(&params.datetime)
-        .map(|dt| dt.with_timezone(&Utc))
-        .or_else(|_| {
-            chrono::NaiveDateTime::parse_from_str(&params.datetime, "%Y-%m-%dT%H:%M:%S")
-                .map(|dt| Utc.from_utc_datetime(&dt))
-        })
-        .map_err(|_| {
-            tracing::warn!("❌ 无法解析日期时间: {}", params.datetime);
-            (
+    let datetime_utc = if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&params.datetime) {
+        dt.with_timezone(&Utc)
+    } else if let Ok(naive) =
+        chrono::NaiveDateTime::parse_from_str(&params.datetime, "%Y-%m-%dT%H:%M:%S")
+            .or_else(|_| chrono::NaiveDateTime::parse_from_str(&params.datetime, "%Y-%m-%dT%H:%M"))
+    {
+        if let Some(local_dt) = fixed_offset.from_local_datetime(&naive).single() {
+            local_dt.with_timezone(&Utc)
+        } else {
+            tracing::warn!(
+                "❌ 无法按时区解释本地时间: datetime={}, tzOffsetMinutes={}",
+                params.datetime,
+                tz_offset_minutes
+            );
+            return Err((
                 StatusCode::BAD_REQUEST,
                 Json(json!({
-                    "error": "无法解析日期时间格式",
-                    "message": format!("提供的日期时间 '{}' 格式无效，请使用 ISO 8601 格式（如：2025-01-01T12:00:00Z）", params.datetime)
-                }))
-            )
-        })?;
+                    "error": "无法按时区解释本地时间",
+                    "message": format!(
+                        "提供的日期时间 '{}' 与时区偏移 '{}' 不兼容，请检查输入格式",
+                        params.datetime, tz_offset_minutes
+                    )
+                })),
+            ));
+        }
+    } else {
+        tracing::warn!("❌ 无法解析日期时间: {}", params.datetime);
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "error": "无法解析日期时间格式",
+                "message": format!("提供的日期时间 '{}' 格式无效，请使用 ISO 8601 格式（如：2025-01-01T12:00:00Z）", params.datetime)
+            })),
+        ));
+    };
 
     // 获取出生地经度（用于计算真太阳时）
     // 默认使用北京经度 116.4°E
@@ -963,7 +985,9 @@ async fn get_bazi(
     let hour_zhi_idx = pillars.hour.1 as i32;
 
     let solar_longitude = pillars.solar_longitude;
-    let year = datetime_utc.year();
+    // 出生年/当前年按用户传入时区解释，避免 UTC 边界导致年龄偏差
+    let birth_year = datetime_utc.with_timezone(&fixed_offset).year();
+    let current_year = Utc::now().with_timezone(&fixed_offset).year();
 
     // 构建四柱（包含十神和藏干）
     let create_pillar = |gan_idx: i32, zhi_idx: i32, day_gan_idx: usize| -> serde_json::Value {
@@ -1053,16 +1077,21 @@ async fn get_bazi(
         month_zhi_idx,
         year_gan_idx,
         &gender,
-        year, // 出生年份 (公历)
+        birth_year, // 出生年份 (按用户时区)
         start_age,
     );
 
     // 计算当前小运
-    let current_year = Utc::now().year();
-    let xiaoyun = calculate_xiaoyun(hour_gan_idx, hour_zhi_idx, &gender, year, current_year);
+    let xiaoyun = calculate_xiaoyun(
+        hour_gan_idx,
+        hour_zhi_idx,
+        &gender,
+        birth_year,
+        current_year,
+    );
 
     // 计算流年 (当前年+未来5年)
-    let liunian = calculate_liunian(year, current_year, 6);
+    let liunian = calculate_liunian(birth_year, current_year, 6);
 
     // 日主十神分析
     let day_gan_str = TIANGAN[day_gan_idx as usize % 10];
@@ -1095,14 +1124,15 @@ async fn get_bazi(
         "xiaoyun": xiaoyun,
         "liunian": liunian,
         "gender": gender,
-        "birth_year": year,
+        "birth_year": birth_year,
         "zodiac": SHENGXIAO[year_zhi_idx as usize % 12],
         "solar_term": current_solar_term,
         "start_age": start_age.round() as i32,
         "solar_longitude": solar_longitude,
         "true_solar_hour": tst_hour,
         "is_late_zi": pillars.is_late_zi,
-        "longitude": longitude
+        "longitude": longitude,
+        "tz_offset_minutes": tz_offset_minutes
     })))
 }
 
