@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import type { FortuneResponse, PeriodInfo, TimelineData } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { FortuneResponse, PeriodInfo, TimelineLevel, TimelineResponse } from '../types';
 
 interface TimelineProps {
   currentYear: number;
@@ -11,6 +11,219 @@ interface TimelineProps {
   primary: 'algorithm' | 'table';
   tzOffsetMinutes?: number;
   lon?: number;
+}
+
+interface TimelineEvent {
+  year: number;
+  title: string;
+  description?: string;
+}
+
+interface SelectedNode {
+  level: TimelineLevel;
+  name: string;
+  index: number;
+  start_year: number;
+  end_year: number;
+  max_index: number;
+}
+
+type SelectedPeriod = PeriodInfo & { level: TimelineLevel };
+
+type MobilePanel = 'detail' | 'critical' | 'events';
+
+interface TransitionItem {
+  level: TimelineLevel;
+  startYear: number;
+  targetName: string;
+  index: number;
+  maxIndex: number;
+}
+
+const LEVEL_META: Record<
+  TimelineLevel,
+  {
+    label: string;
+    enLabel: string;
+    colorText: string;
+    colorSoftBg: string;
+    colorBorder: string;
+    colorBar: string;
+  }
+> = {
+  hui: {
+    label: '会',
+    enLabel: 'ERA',
+    colorText: 'text-cyan-300',
+    colorSoftBg: 'bg-cyan-500/10',
+    colorBorder: 'border-cyan-500/30',
+    colorBar: 'bg-cyan-400',
+  },
+  yun: {
+    label: '运',
+    enLabel: 'CYCLE',
+    colorText: 'text-emerald-300',
+    colorSoftBg: 'bg-emerald-500/10',
+    colorBorder: 'border-emerald-500/30',
+    colorBar: 'bg-emerald-400',
+  },
+  shi: {
+    label: '世',
+    enLabel: 'GENERATION',
+    colorText: 'text-amber-300',
+    colorSoftBg: 'bg-amber-500/10',
+    colorBorder: 'border-amber-500/30',
+    colorBar: 'bg-amber-400',
+  },
+  xun: {
+    label: '旬',
+    enLabel: 'DECADE',
+    colorText: 'text-purple-300',
+    colorSoftBg: 'bg-purple-500/10',
+    colorBorder: 'border-purple-500/30',
+    colorBar: 'bg-purple-400',
+  },
+};
+
+const XUN_NAMES = ['甲子', '甲戌', '甲申'];
+
+function getListByLevel(data: TimelineResponse, level: TimelineLevel): PeriodInfo[] {
+  switch (level) {
+    case 'hui':
+      return data.hui_list;
+    case 'yun':
+      return data.yun_list;
+    case 'shi':
+      return data.shi_list;
+    case 'xun':
+      return data.xun_list;
+    default:
+      return data.xun_list;
+  }
+}
+
+function getCurrentByLevel(data: TimelineResponse, level: TimelineLevel): PeriodInfo {
+  switch (level) {
+    case 'hui':
+      return data.current.hui;
+    case 'yun':
+      return data.current.yun;
+    case 'shi':
+      return data.current.shi;
+    case 'xun':
+      return data.current.xun;
+    default:
+      return data.current.xun;
+  }
+}
+
+function periodToSelected(level: TimelineLevel, period: PeriodInfo): SelectedNode {
+  return {
+    level,
+    name: period.name,
+    index: period.index,
+    start_year: period.start_year,
+    end_year: period.end_year,
+    max_index: period.max_index,
+  };
+}
+
+function formatNodeName(level: TimelineLevel, name: string): string {
+  if (level === 'hui') return `${name}会`;
+  if (level === 'yun') return `${name}运`;
+  if (level === 'shi') return `${name}世`;
+  return `${name}旬`;
+}
+
+function toTzLabel(offsetMinutes: number): string {
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const absMinutes = Math.abs(offsetMinutes);
+  const hours = String(Math.floor(absMinutes / 60)).padStart(2, '0');
+  const minutes = String(absMinutes % 60).padStart(2, '0');
+  return `UTC${sign}${hours}:${minutes}`;
+}
+
+function formatWithOffset(datetimeIso: string, offsetMinutes: number): string {
+  const dt = new Date(datetimeIso);
+  if (Number.isNaN(dt.getTime())) return '--';
+  const shifted = new Date(dt.getTime() + offsetMinutes * 60_000);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(shifted.getUTCDate()).padStart(2, '0');
+  const hh = String(shifted.getUTCHours()).padStart(2, '0');
+  const mm = String(shifted.getUTCMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d} ${hh}:${mm}`;
+}
+
+function resolveSelectedPeriod(
+  data: TimelineResponse,
+  selectedNode: SelectedNode | null,
+): SelectedPeriod {
+  if (selectedNode) {
+    const list = getListByLevel(data, selectedNode.level);
+    const matched =
+      list.find(
+        (item) => item.index === selectedNode.index && item.start_year === selectedNode.start_year,
+      ) || list.find((item) => item.start_year === selectedNode.start_year);
+
+    if (matched) {
+      return {
+        ...matched,
+        level: selectedNode.level,
+      };
+    }
+  }
+
+  return {
+    ...data.current.xun,
+    level: 'xun',
+  };
+}
+
+function buildNextTransitions(data: TimelineResponse): TransitionItem[] {
+  const levels: TimelineLevel[] = ['xun', 'shi', 'yun', 'hui'];
+
+  return levels.map((level) => {
+    const current = getCurrentByLevel(data, level);
+    const list = getListByLevel(data, level);
+
+    const currentPos = list.findIndex(
+      (item) => item.index === current.index && item.start_year === current.start_year,
+    );
+    const nextInList =
+      currentPos >= 0 && currentPos < list.length - 1 ? list[currentPos + 1] : undefined;
+
+    if (nextInList) {
+      return {
+        level,
+        startYear: nextInList.start_year,
+        targetName: nextInList.name,
+        index: nextInList.index,
+        maxIndex: nextInList.max_index,
+      };
+    }
+
+    if (level === 'xun') {
+      const xunIdx = XUN_NAMES.indexOf(current.name);
+      const nextName =
+        xunIdx >= 0 ? XUN_NAMES[(xunIdx + 1) % XUN_NAMES.length] : list[0]?.name || XUN_NAMES[0];
+      return {
+        level,
+        startYear: current.end_year + 1,
+        targetName: nextName,
+        index: 1,
+        maxIndex: current.max_index,
+      };
+    }
+
+    return {
+      level,
+      startYear: current.end_year + 1,
+      targetName: `下一${LEVEL_META[level].label}`,
+      index: 1,
+      maxIndex: current.max_index,
+    };
+  });
 }
 
 const Timeline: React.FC<TimelineProps> = ({
@@ -25,21 +238,21 @@ const Timeline: React.FC<TimelineProps> = ({
   lon,
 }) => {
   const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
-  const [data, setData] = useState<TimelineData | null>(null);
+  const [data, setData] = useState<TimelineResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
-  const [events, setEvents] = useState<Array<{ year: number; title: string; description: string }>>(
-    [],
-  );
+  const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [huiDoc, setHuiDoc] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>('detail');
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
         const query = new URLSearchParams({
-          datetime: `${currentYear}-01-01T12:00:00Z`,
+          datetime: currentDatetime,
           mode,
           yearStart,
           primary,
@@ -48,7 +261,7 @@ const Timeline: React.FC<TimelineProps> = ({
         });
         const response = await fetch(`${API_BASE}/api/timeline?${query}`);
         if (!response.ok) throw new Error('Failed to fetch timeline');
-        const json = await response.json();
+        const json = (await response.json()) as TimelineResponse;
         setData(json);
         setError(null);
       } catch (err) {
@@ -60,7 +273,24 @@ const Timeline: React.FC<TimelineProps> = ({
     };
 
     fetchData();
-  }, [currentYear, API_BASE, mode, yearStart, primary, tzOffsetMinutes, lon]);
+  }, [currentDatetime, API_BASE, mode, yearStart, primary, tzOffsetMinutes, lon]);
+
+  useEffect(() => {
+    if (!data) return;
+
+    setSelectedNode((prev) => {
+      if (prev) {
+        const list = getListByLevel(data, prev.level);
+        const found = list.find(
+          (item) => item.start_year === prev.start_year && item.index === prev.index,
+        );
+        if (found) {
+          return periodToSelected(prev.level, found);
+        }
+      }
+      return periodToSelected('xun', data.current.xun);
+    });
+  }, [data]);
 
   useEffect(() => {
     if (!data) return;
@@ -90,34 +320,50 @@ const Timeline: React.FC<TimelineProps> = ({
 
   useEffect(() => {
     if (!data) return;
+
     const rangeFor = (list: PeriodInfo[], activeIndex: number) => {
-      const pos = list.findIndex((i) => i.index === activeIndex);
+      const pos = list.findIndex((item) => item.index === activeIndex);
       const segs = [
         ...(pos > 0 ? [list[pos - 1]] : []),
         ...(pos >= 0 ? [list[pos]] : []),
         ...(pos >= 0 && pos < list.length - 1 ? [list[pos + 1]] : []),
       ];
       return {
-        start: Math.min(...segs.map((s) => s.start_year)),
-        end: Math.max(...segs.map((s) => s.end_year)),
+        start: Math.min(...segs.map((item) => item.start_year)),
+        end: Math.max(...segs.map((item) => item.end_year)),
       };
     };
+
     const r1 = rangeFor(data.hui_list, data.current.hui.index);
     const r2 = rangeFor(data.yun_list, data.current.yun.index);
     const r3 = rangeFor(data.shi_list, data.current.shi.index);
     const r4 = rangeFor(data.xun_list, data.current.xun.index);
     const start = Math.min(r1.start, r2.start, r3.start, r4.start);
     const end = Math.max(r1.end, r2.end, r3.end, r4.end);
+
     const fetchEvents = async () => {
       try {
         const resp = await fetch(`${API_BASE}/api/history?start=${start}&end=${end}`);
-        if (!resp.ok) throw new Error('Failed');
+        if (!resp.ok) throw new Error('Failed history fetch');
         const json = await resp.json();
-        setEvents(json);
+        if (!Array.isArray(json)) {
+          setEvents([]);
+          return;
+        }
+        const normalized: TimelineEvent[] = json
+          .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+          .map((item) => ({
+            year: Number(item.year),
+            title: typeof item.title === 'string' ? item.title : '未命名事件',
+            description: typeof item.description === 'string' ? item.description : undefined,
+          }))
+          .filter((item) => Number.isFinite(item.year));
+        setEvents(normalized);
       } catch {
         setEvents([]);
       }
     };
+
     fetchEvents();
   }, [data, API_BASE]);
 
@@ -126,69 +372,93 @@ const Timeline: React.FC<TimelineProps> = ({
     return <div className="text-red-400 text-xs p-4 border border-red-900 rounded-lg">{error}</div>;
   if (!data) return null;
 
-  const dtObj = new Date(currentDatetime);
-  const tzOffset = -dtObj.getTimezoneOffset() / 60;
-  const tzSign = tzOffset >= 0 ? '+' : '-';
-  const tzLabel = `UTC${tzSign}${String(Math.abs(Math.floor(tzOffset))).padStart(2, '0')}`;
-  const localStr = `${dtObj.getFullYear()}-${String(dtObj.getMonth() + 1).padStart(2, '0')}-${String(dtObj.getDate()).padStart(2, '0')} ${String(dtObj.getHours()).padStart(2, '0')}:${String(dtObj.getMinutes()).padStart(2, '0')}`;
+  const offsetMinutes =
+    typeof tzOffsetMinutes === 'number' && Number.isFinite(tzOffsetMinutes)
+      ? tzOffsetMinutes
+      : -new Date(currentDatetime).getTimezoneOffset();
+  const tzLabel = toTzLabel(offsetMinutes);
+  const localStr = formatWithOffset(currentDatetime, offsetMinutes);
+
+  const selectedPeriod = resolveSelectedPeriod(data, selectedNode);
+  const selectedMeta = LEVEL_META[selectedPeriod.level];
+
+  const spanYears = Math.max(1, selectedPeriod.end_year - selectedPeriod.start_year + 1);
+  const elapsedYears = Math.max(0, Math.min(data.year - selectedPeriod.start_year, spanYears));
+  const remainingYears = Math.max(0, selectedPeriod.end_year - data.year);
+  const progress = Math.max(0, Math.min(100, (elapsedYears / spanYears) * 100));
+
+  const selectedEvents = useMemo(() => {
+    return events
+      .filter(
+        (event) => event.year >= selectedPeriod.start_year && event.year <= selectedPeriod.end_year,
+      )
+      .sort((a, b) => a.year - b.year)
+      .slice(0, 6);
+  }, [events, selectedPeriod.start_year, selectedPeriod.end_year]);
+
+  const transitions = useMemo(() => buildNextTransitions(data), [data]);
 
   const renderEvents = (period: PeriodInfo) => {
     const eventsInPeriod = events.filter(
-      (e) => e.year >= period.start_year && e.year <= period.end_year,
+      (event) => event.year >= period.start_year && event.year <= period.end_year,
     );
     if (eventsInPeriod.length === 0) return null;
 
     return (
       <div className="absolute bottom-0 left-0 right-0 flex justify-center space-x-1 pb-1">
-        {eventsInPeriod.map((e) => (
+        {eventsInPeriod.map((event) => (
           <div
-            key={e.title}
+            key={`${event.year}-${event.title}`}
             className="w-1 h-1 bg-red-500 rounded-full"
-            title={`${e.year}: ${e.title}`}
+            title={`${event.year}: ${event.title}`}
           />
         ))}
       </div>
     );
   };
 
+  const handleSelectPeriod = (level: TimelineLevel, item: PeriodInfo) => {
+    setSelectedNode(periodToSelected(level, item));
+    onYearChange(item.start_year);
+  };
+
+  const handleTransitionJump = (item: TransitionItem) => {
+    setSelectedNode({
+      level: item.level,
+      name: item.targetName,
+      index: item.index,
+      start_year: item.startYear,
+      end_year: item.startYear,
+      max_index: item.maxIndex,
+    });
+    onYearChange(item.startYear);
+  };
+
   const renderRow = (
     title: string,
+    level: TimelineLevel,
     items: PeriodInfo[],
     activeIndex: number,
     colorClass: string,
   ) => {
-    let centerPos = items.findIndex((i) => i.index === activeIndex);
+    let centerPos = items.findIndex((item) => item.index === activeIndex);
     if (centerPos < 0 && items.length > 0)
       centerPos = Math.min(items.length - 1, Math.floor(items.length / 2));
+
     const displayItems: PeriodInfo[] = [];
     if (centerPos > 0) displayItems.push(items[centerPos - 1]);
     if (centerPos >= 0 && centerPos < items.length) displayItems.push(items[centerPos]);
     if (centerPos >= 0 && centerPos < items.length - 1) displayItems.push(items[centerPos + 1]);
-    let activeItem = items.find((i) => i.index === activeIndex);
+
+    let activeItem = items.find((item) => item.index === activeIndex);
     if (!activeItem && centerPos >= 0 && items.length > 0) activeItem = items[centerPos];
-    const typeLabel = title.includes('Era')
-      ? '会'
-      : title.includes('Cycle')
-        ? '运'
-        : title.includes('Gen')
-          ? '世'
-          : '旬';
-    const spanLabel = title.includes('Era')
-      ? '10800年'
-      : title.includes('Cycle')
-        ? '360年'
-        : title.includes('Gen')
-          ? '30年'
-          : '10年';
-    const labelForItem = (item: PeriodInfo) => {
-      // 使用干支名称而不是序号
-      if (typeLabel === '会') return `${item.name}会`;
-      if (typeLabel === '运') return `${item.name}运`;
-      if (typeLabel === '世') return `${item.name}世`;
-      return `${item.name}旬`;
-    };
+
+    const typeLabel = LEVEL_META[level].label;
+    const spanLabel =
+      level === 'hui' ? '10800年' : level === 'yun' ? '360年' : level === 'shi' ? '30年' : '10年';
+
     return (
-      <div className="mb-6">
+      <div className="mb-6" key={level}>
         <div className="flex items-center justify-between mb-2">
           <div className="relative group">
             <h4 className="text-[10px] text-gray-400 uppercase tracking-widest w-24 shrink-0">
@@ -226,24 +496,27 @@ const Timeline: React.FC<TimelineProps> = ({
           {displayItems.map((item) => {
             const isActive = item.index === activeIndex;
             const isPast = item.end_year < currentYear;
+            const isSelected =
+              selectedPeriod.level === level &&
+              selectedPeriod.start_year === item.start_year &&
+              selectedPeriod.index === item.index;
 
             return (
               <button
                 key={`${title}-${item.index}`}
-                onClick={() => onYearChange(item.start_year)}
+                onClick={() => handleSelectPeriod(level, item)}
                 className={`
                   flex-shrink-0 relative group transition-all duration-300
                   ${isActive ? 'w-32' : 'w-20 hover:w-24'}
-                  h-16 rounded-sm border border-white/5 overflow-hidden
-                  ${isActive ? 'bg-white/10 border-white/20' : 'bg-white/5 hover:bg-white/10'}
+                  h-16 rounded-sm border overflow-hidden
+                  ${isActive ? 'bg-white/10 border-white/20' : 'bg-white/5 hover:bg-white/10 border-white/5'}
+                  ${isSelected ? 'ring-1 ring-gold/70' : ''}
                 `}
               >
-                {/* Background Fill for Active/Past */}
                 <div
                   className={`absolute inset-0 opacity-20 ${isActive ? colorClass : isPast ? 'bg-gray-800' : ''}`}
                 />
 
-                {/* Active Indicator Line */}
                 {isActive && (
                   <div
                     className={`absolute top-0 left-0 right-0 h-0.5 ${colorClass} shadow-[0_0_8px_currentColor]`}
@@ -254,7 +527,7 @@ const Timeline: React.FC<TimelineProps> = ({
                   <span
                     className={`text-[10px] font-mono truncate ${isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-300'}`}
                   >
-                    {labelForItem(item)}
+                    {formatNodeName(level, item.name)}
                   </span>
 
                   <span className="text-[9px] text-gray-600 font-mono absolute bottom-1 right-2 opacity-50 group-hover:opacity-100">
@@ -265,29 +538,27 @@ const Timeline: React.FC<TimelineProps> = ({
                     <div className="text-[9px] text-gray-400 font-mono mt-1">{item.start_year}</div>
                   )}
 
-                  {/* Event Markers */}
                   {renderEvents(item)}
                 </div>
 
-                {/* Hover Tooltip for Structure */}
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-black/90 border border-white/20 rounded p-2 hidden group-hover:block z-20 pointer-events-none">
                   <div className="text-[10px] text-gray-400 mb-1 text-center">
-                    公元 {item.start_year} – {item.end_year} · {labelForItem(item)}
+                    公元 {item.start_year} – {item.end_year} · {formatNodeName(level, item.name)}
                   </div>
-                  {typeLabel === '运' && (
+                  {level === 'yun' && (
                     <div className="text-[10px] text-gray-200 text-center">
                       {mapping?.yun_raw
                         ? mapping.yun_raw
                         : `${item.name}（${item.start_year}-${item.end_year}）`}
                     </div>
                   )}
-                  {typeLabel === '会' && (
+                  {level === 'hui' && (
                     <div className="text-[10px] text-gray-200 text-center">
                       {(mapping?.hui_raw || `${item.name}会`) +
                         (item.index === activeIndex && huiDoc ? ` · ${huiDoc}` : '')}
                     </div>
                   )}
-                  {typeLabel === '旬' && (
+                  {level === 'xun' && (
                     <div className="text-[10px] text-gray-200 text-center">
                       {mapping?.xun_raw || `第${item.index}旬`}
                     </div>
@@ -297,6 +568,156 @@ const Timeline: React.FC<TimelineProps> = ({
             );
           })}
         </div>
+      </div>
+    );
+  };
+
+  const detailCard = (
+    <div className={`bg-black/30 border rounded-2xl p-4 space-y-3 ${selectedMeta.colorBorder}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[10px] text-gray-500 uppercase tracking-widest">
+            当前选中节点详情
+          </div>
+          <div className={`text-sm font-serif mt-1 ${selectedMeta.colorText}`}>
+            {formatNodeName(selectedPeriod.level, selectedPeriod.name)}
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] text-gray-500">层级</div>
+          <div className="text-[11px] text-gray-300">
+            {selectedMeta.label} · {selectedMeta.enLabel}
+          </div>
+        </div>
+      </div>
+
+      <div className="text-[11px] text-gray-400 leading-relaxed">
+        公历范围：{selectedPeriod.start_year}-01-01 00:00 ~ {selectedPeriod.end_year}-12-31 23:59{' '}
+        {tzLabel}
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-gray-500">层级进度</span>
+          <span className="text-gray-300">
+            已过 {elapsedYears} 年 · 剩余 {remainingYears} 年
+          </span>
+        </div>
+        <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+          <div
+            className={`h-full transition-all duration-300 ${selectedMeta.colorBar}`}
+            style={{ width: `${progress}%` }}
+          ></div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-[11px]">
+        <div className="bg-black/40 border border-white/5 rounded-lg p-2">
+          <div className="text-gray-500">序号</div>
+          <div className="text-gray-200">
+            {selectedPeriod.index}/{selectedPeriod.max_index}
+          </div>
+        </div>
+        <div className="bg-black/40 border border-white/5 rounded-lg p-2">
+          <div className="text-gray-500">跨度</div>
+          <div className="text-gray-200">{spanYears} 年</div>
+        </div>
+        <div className="bg-black/40 border border-white/5 rounded-lg p-2">
+          <div className="text-gray-500">中心经世年</div>
+          <div className="text-gray-200">{data.year}</div>
+        </div>
+        <div className="bg-black/40 border border-white/5 rounded-lg p-2">
+          <div className="text-gray-500">当前值年卦</div>
+          <div className="text-gray-200">{data.current.year_gua}</div>
+        </div>
+      </div>
+
+      {data.calc_meta && (
+        <div
+          className={`text-[10px] rounded-lg border p-2 ${selectedMeta.colorSoftBg} ${selectedMeta.colorBorder}`}
+        >
+          口径：{data.calc_meta.mode} / {data.calc_meta.primary} / {data.calc_meta.year_start}
+        </div>
+      )}
+    </div>
+  );
+
+  const criticalCard = (
+    <div className="bg-black/30 border border-white/10 rounded-2xl p-4 space-y-3">
+      <div className="text-[10px] text-gray-500 uppercase tracking-widest">临界点 / 倒计时</div>
+      <div className="space-y-2">
+        {transitions.map((item) => {
+          const yearsLeft = Math.max(0, item.startYear - data.year);
+          const meta = LEVEL_META[item.level];
+          return (
+            <button
+              key={`${item.level}-${item.startYear}`}
+              onClick={() => handleTransitionJump(item)}
+              className="w-full bg-black/40 hover:bg-black/50 border border-white/10 hover:border-white/20 rounded-lg p-2.5 transition-colors text-left"
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] text-gray-200">
+                  下一{meta.label}：{formatNodeName(item.level, item.targetName)}
+                </div>
+                <div className={`text-[11px] font-mono ${meta.colorText}`}>{yearsLeft}y</div>
+              </div>
+              <div className="text-[10px] text-gray-500 mt-1">
+                切换年份：{item.startYear} · 点击跳转
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const eventsCard = (
+    <div className="bg-black/30 border border-white/10 rounded-2xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] text-gray-500 uppercase tracking-widest">关联事件</div>
+        <div className="text-[10px] text-gray-500">
+          {selectedPeriod.start_year} – {selectedPeriod.end_year}
+        </div>
+      </div>
+      {selectedEvents.length === 0 ? (
+        <div className="text-[11px] text-gray-500">当前节点范围暂无事件记录</div>
+      ) : (
+        <div className="space-y-2">
+          {selectedEvents.map((event) => (
+            <button
+              key={`${event.year}-${event.title}`}
+              onClick={() => onYearChange(event.year)}
+              className="w-full text-left bg-black/40 hover:bg-black/50 border border-white/10 rounded-lg p-2.5 transition-colors"
+              title={event.description || event.title}
+            >
+              <div className="text-[11px] text-gray-200 leading-snug">
+                <span className="text-gold/90 mr-1">{event.year}</span>
+                {event.title}
+              </div>
+              {event.description && (
+                <div className="text-[10px] text-gray-500 mt-1 line-clamp-2">
+                  {event.description}
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderMobilePanel = (panel: MobilePanel, title: string, content: React.ReactNode) => {
+    const isOpen = mobilePanel === panel;
+    return (
+      <div className="border border-white/10 rounded-xl overflow-hidden bg-black/20" key={panel}>
+        <button
+          className="w-full px-3 py-2.5 flex items-center justify-between text-left"
+          onClick={() => setMobilePanel(isOpen ? 'detail' : panel)}
+        >
+          <span className="text-xs text-gray-300">{title}</span>
+          <span className="text-xs text-gray-500">{isOpen ? '−' : '+'}</span>
+        </button>
+        {isOpen && <div className="p-3 pt-0">{content}</div>}
       </div>
     );
   };
@@ -326,12 +747,11 @@ const Timeline: React.FC<TimelineProps> = ({
             回到现在
           </button>
           <div className="text-[10px] text-gray-500 font-mono">
-            CENTER: {data.current.year_gua} ({currentYear}) · {localStr} {tzLabel}
+            CENTER: {data.current.year_gua} ({data.year}) · {localStr} {tzLabel}
           </div>
         </div>
       </div>
 
-      {/* Help Overlay - Modal Style */}
       {showHelp && (
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
@@ -340,7 +760,7 @@ const Timeline: React.FC<TimelineProps> = ({
           <div
             className="bg-white w-full max-w-md rounded-xl shadow-2xl p-6 relative animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
-            style={{ backgroundColor: '#ffffff', color: '#1f2937' }} // Inline style fallback
+            style={{ backgroundColor: '#ffffff', color: '#1f2937' }}
           >
             <button
               onClick={() => setShowHelp(false)}
@@ -421,11 +841,33 @@ const Timeline: React.FC<TimelineProps> = ({
         </div>
       )}
 
-      <div className="space-y-2">
-        {renderRow('会 (Era)', data.hui_list, data.current.hui.index, 'bg-cyan-500')}
-        {renderRow('运 (Cycle)', data.yun_list, data.current.yun.index, 'bg-emerald-500')}
-        {renderRow('世 (Generation)', data.shi_list, data.current.shi.index, 'bg-amber-500')}
-        {renderRow('旬 (Decade)', data.xun_list, data.current.xun.index, 'bg-purple-500')}
+      <div className="xl:grid xl:grid-cols-10 xl:gap-5">
+        <div className="space-y-2 xl:col-span-7">
+          {renderRow('会 (Era)', 'hui', data.hui_list, data.current.hui.index, 'bg-cyan-500')}
+          {renderRow('运 (Cycle)', 'yun', data.yun_list, data.current.yun.index, 'bg-emerald-500')}
+          {renderRow(
+            '世 (Generation)',
+            'shi',
+            data.shi_list,
+            data.current.shi.index,
+            'bg-amber-500',
+          )}
+          {renderRow('旬 (Decade)', 'xun', data.xun_list, data.current.xun.index, 'bg-purple-500')}
+        </div>
+
+        <aside className="xl:col-span-3 mt-4 xl:mt-0">
+          <div className="hidden xl:flex xl:flex-col xl:gap-3">
+            {detailCard}
+            {criticalCard}
+            {eventsCard}
+          </div>
+
+          <div className="xl:hidden space-y-2">
+            {renderMobilePanel('detail', '当前选中节点详情', detailCard)}
+            {renderMobilePanel('critical', '临界点 / 倒计时', criticalCard)}
+            {renderMobilePanel('events', '关联事件', eventsCard)}
+          </div>
+        </aside>
       </div>
     </div>
   );

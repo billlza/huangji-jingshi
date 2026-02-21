@@ -40,6 +40,8 @@ export interface TimelineData {
   xun_list: PeriodInfo[];
 }
 
+export type TimelineLevel = 'hui' | 'yun' | 'shi' | 'xun';
+
 export interface FortuneResponse {
   yuan: string;
   hui: string;
@@ -138,4 +140,12 @@ export interface SkyResponse {
 export interface CombinedResponse {
   fortune: FortuneResponse;
   sky: SkyResponse;
+}
+
+export interface TimelineResponse extends TimelineData {
+  year: number;
+  calc_meta?: FortuneResponse['calc_meta'];
+  variants?: FortuneResponse['variants'];
+  diff?: FortuneResponse['diff'];
+  mapping_record?: FortuneResponse['mapping_record'];
 }
