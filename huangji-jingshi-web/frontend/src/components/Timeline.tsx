@@ -464,10 +464,14 @@ const Timeline: React.FC<TimelineProps> = ({
     if (centerPos < 0 && items.length > 0)
       centerPos = Math.min(items.length - 1, Math.floor(items.length / 2));
 
-    const displayItems: PeriodInfo[] = [];
-    if (centerPos > 0) displayItems.push(items[centerPos - 1]);
-    if (centerPos >= 0 && centerPos < items.length) displayItems.push(items[centerPos]);
-    if (centerPos >= 0 && centerPos < items.length - 1) displayItems.push(items[centerPos + 1]);
+    const visibleCount = Math.min(3, items.length);
+    let startPos = Math.max(0, centerPos - 1);
+    let endPos = startPos + visibleCount;
+    if (endPos > items.length) {
+      endPos = items.length;
+      startPos = Math.max(0, endPos - visibleCount);
+    }
+    const displayItems = items.slice(startPos, endPos);
 
     let activeItem = items.find((item) => item.index === activeIndex);
     if (!activeItem && centerPos >= 0 && items.length > 0) activeItem = items[centerPos];
