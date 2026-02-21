@@ -416,6 +416,26 @@ const Timeline: React.FC<TimelineProps> = ({
     .slice(0, 6);
 
   const transitions = buildNextTransitions(data);
+  const transitionByLevel = transitions.reduce(
+    (acc, item) => {
+      acc[item.level] = item;
+      return acc;
+    },
+    {} as Partial<Record<TimelineLevel, TransitionItem>>,
+  );
+
+  const buildSyntheticNext = (level: TimelineLevel, current: PeriodInfo): PeriodInfo | null => {
+    const next = transitionByLevel[level];
+    if (!next) return null;
+    const spanYears = Math.max(1, current.end_year - current.start_year + 1);
+    return {
+      name: next.targetName,
+      start_year: next.startYear,
+      end_year: next.startYear + spanYears - 1,
+      index: next.index,
+      max_index: current.max_index,
+    };
+  };
 
   const renderEvents = (period: PeriodInfo) => {
     const eventsInPeriod = events.filter(
@@ -464,14 +484,33 @@ const Timeline: React.FC<TimelineProps> = ({
     if (centerPos < 0 && items.length > 0)
       centerPos = Math.min(items.length - 1, Math.floor(items.length / 2));
 
-    const visibleCount = Math.min(3, items.length);
-    let startPos = Math.max(0, centerPos - 1);
-    let endPos = startPos + visibleCount;
-    if (endPos > items.length) {
-      endPos = items.length;
-      startPos = Math.max(0, endPos - visibleCount);
+    const displayItems: PeriodInfo[] = [];
+    if (centerPos > 0) displayItems.push(items[centerPos - 1]);
+    if (centerPos >= 0 && centerPos < items.length) displayItems.push(items[centerPos]);
+    if (centerPos >= 0 && centerPos < items.length - 1) displayItems.push(items[centerPos + 1]);
+
+    if (displayItems.length < 3 && centerPos === 0) {
+      let rightOffset = 2;
+      while (displayItems.length < 3 && centerPos + rightOffset < items.length) {
+        displayItems.push(items[centerPos + rightOffset]);
+        rightOffset += 1;
+      }
     }
-    const displayItems = items.slice(startPos, endPos);
+
+    if (displayItems.length < 3 && centerPos === items.length - 1 && items.length > 0) {
+      const syntheticNext = buildSyntheticNext(level, items[centerPos]);
+      if (syntheticNext) {
+        displayItems.push(syntheticNext);
+      }
+    }
+
+    if (displayItems.length < 3 && centerPos === items.length - 1) {
+      let leftOffset = 2;
+      while (displayItems.length < 3 && centerPos - leftOffset >= 0) {
+        displayItems.unshift(items[centerPos - leftOffset]);
+        leftOffset += 1;
+      }
+    }
 
     let activeItem = items.find((item) => item.index === activeIndex);
     if (!activeItem && centerPos >= 0 && items.length > 0) activeItem = items[centerPos];
@@ -534,7 +573,7 @@ const Timeline: React.FC<TimelineProps> = ({
 
             return (
               <button
-                key={`${title}-${item.index}`}
+                key={`${title}-${item.index}-${item.start_year}`}
                 onClick={() => handleSelectPeriod(level, item)}
                 className={`
                   flex-shrink-0 relative group transition-all duration-300
