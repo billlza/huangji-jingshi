@@ -30,3 +30,8 @@ Cargo.lock
 *.md
 !README.md
 
+# Never upload local environment files; production values come from Vercel settings.
+.env
+.env.*
+frontend/.env
+frontend/.env.*
