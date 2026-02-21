@@ -6,17 +6,17 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://hjjs-backend.onrender.com/api/$1"
+      "source": "/api/:path*",
+      "destination": "https://hjjs-backend.onrender.com/api/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ],
   "headers": [
     {
-      "source": "/data/(.*)",
+      "source": "/data/:path*",
       "headers": [
         {
           "key": "Cache-Control",
@@ -25,7 +25,7 @@
       ]
     },
     {
-      "source": "/api/(.*)",
+      "source": "/api/:path*",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
