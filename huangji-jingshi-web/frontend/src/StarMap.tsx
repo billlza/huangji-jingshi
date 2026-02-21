@@ -108,9 +108,14 @@ export function StarMap({
         }
       };
 
-      const localCandidates = ['/data/', '/api/celestial/data/'];
-      if (API_BASE) {
-        localCandidates.push(`${API_BASE}/api/celestial/data/`);
+      const localCandidates = ['/data/'];
+      if (await probe('/data/')) {
+        console.log('[StarMap] Using local static: /data/');
+        return '/data/';
+      }
+      localCandidates.push('/api/celestial/data/');
+      if (API_BASE.startsWith('/')) {
+        localCandidates.push(`${API_BASE.replace(/\/$/, '')}/api/celestial/data/`);
       }
       const localProbeResults = await Promise.all(
         localCandidates.map(async (root) => ({ root, ok: await probe(root) })),
@@ -127,18 +132,7 @@ export function StarMap({
         return availableLocal.root;
       }
 
-      console.warn('[StarMap] Local sources failed, falling back to CDN');
-      const cdns = [
-        'https://cdn.jsdelivr.net/gh/ofrohn/celestial@master/data/',
-        'https://fastly.jsdelivr.net/gh/ofrohn/celestial@master/data/',
-        'https://raw.githubusercontent.com/ofrohn/celestial/master/data/',
-        'https://ofrohn.github.io/celestial/data/',
-      ];
-      const cdnProbeResults = await Promise.all(
-        cdns.map(async (root) => ({ root, ok: await probe(root) })),
-      );
-      const availableCdn = cdnProbeResults.find((entry) => entry.ok);
-      if (availableCdn) return availableCdn.root;
+      console.warn('[StarMap] Local sources failed, fallback to /data/');
       return '/data/';
     };
     // removed unused resolveCulture
@@ -291,7 +285,7 @@ export function StarMap({
           show: isIau ? showConst : false,
           names: isIau ? showConst : false,
           lines: isIau ? showConst : false,
-          boundaries: isIau ? showXiu : false,
+          bounds: isIau ? showXiu : false,
           namesType: 'name',
         },
       } as unknown as Record<string, unknown>;
@@ -999,7 +993,7 @@ export function StarMap({
             show: isIau ? showConst : false,
             names: isIau ? showConst : false,
             lines: isIau ? showConst : false,
-            boundaries: isIau ? showXiu : false,
+            bounds: isIau ? showXiu : false,
             namesType: isIau ? 'name' : 'name',
           },
         } as unknown;
@@ -1025,8 +1019,8 @@ export function StarMap({
         const canvas2 = c2?.querySelector('canvas') as HTMLCanvasElement | null;
         const svg2 = c2?.querySelector('svg') as SVGSVGElement | null;
         if (vis(canvas2) || vis(svg2)) return;
-        // 强制回退到 CDN 根
-        const hardRoot = 'https://cdn.jsdelivr.net/gh/ofrohn/celestial@master/data/';
+        // 强制重建时保持本地数据根，避免外网波动触发告警弹窗
+        const hardRoot = '/data/';
         const hard = {
           ...configBase,
           culture,
@@ -1039,7 +1033,7 @@ export function StarMap({
             show: isIau ? showConst : false,
             names: isIau ? showConst : false,
             lines: isIau ? showConst : false,
-            boundaries: isIau ? showXiu : false,
+            bounds: isIau ? showXiu : false,
             namesType: isIau ? 'name' : 'name',
           },
         } as unknown;

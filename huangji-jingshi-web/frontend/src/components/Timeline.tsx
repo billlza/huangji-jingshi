@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { FortuneResponse, PeriodInfo, TimelineLevel, TimelineResponse } from '../types';
 
 interface TimelineProps {
@@ -387,16 +387,14 @@ const Timeline: React.FC<TimelineProps> = ({
   const remainingYears = Math.max(0, selectedPeriod.end_year - data.year);
   const progress = Math.max(0, Math.min(100, (elapsedYears / spanYears) * 100));
 
-  const selectedEvents = useMemo(() => {
-    return events
-      .filter(
-        (event) => event.year >= selectedPeriod.start_year && event.year <= selectedPeriod.end_year,
-      )
-      .sort((a, b) => a.year - b.year)
-      .slice(0, 6);
-  }, [events, selectedPeriod.start_year, selectedPeriod.end_year]);
+  const selectedEvents = events
+    .filter(
+      (event) => event.year >= selectedPeriod.start_year && event.year <= selectedPeriod.end_year,
+    )
+    .sort((a, b) => a.year - b.year)
+    .slice(0, 6);
 
-  const transitions = useMemo(() => buildNextTransitions(data), [data]);
+  const transitions = buildNextTransitions(data);
 
   const renderEvents = (period: PeriodInfo) => {
     const eventsInPeriod = events.filter(
