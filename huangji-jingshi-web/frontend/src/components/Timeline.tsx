@@ -176,6 +176,30 @@ function formatWithOffset(datetimeIso: string, offsetMinutes: number): string {
   return `${y}-${m}-${d} ${hh}:${mm}`;
 }
 
+function describeFallbackReason(reason?: string | null): string {
+  switch (reason) {
+    case 'table_not_covered':
+      return '请求 table 主值，但年份超出 canonical 覆盖范围，已按古籍规则切换为 algorithm 推导值。';
+    default:
+      return '请求来源不可用，已切换到可追溯来源。';
+  }
+}
+
+async function readErrorMessage(response: Response): Promise<string> {
+  const fallback = `Timeline request failed (${response.status})`;
+  try {
+    const payload = (await response.json()) as {
+      message?: string;
+      reason?: string;
+      error?: string;
+    };
+    return payload.message || payload.reason || payload.error || fallback;
+  } catch {
+    const text = await response.text();
+    return text || fallback;
+  }
+}
+
 function resolveSelectedPeriod(
   data: TimelineResponse,
   selectedNode: SelectedNode | null,
@@ -281,13 +305,16 @@ const Timeline: React.FC<TimelineProps> = ({
           lon: String(lon ?? 116.4),
         });
         const response = await fetch(`${API_BASE}/api/timeline?${query}`);
-        if (!response.ok) throw new Error('Failed to fetch timeline');
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response));
+        }
         const json = (await response.json()) as TimelineResponse;
         setData(json);
         setError(null);
       } catch (err) {
         console.error(err);
-        setError('Timeline data unavailable');
+        const message = err instanceof Error ? err.message : 'Timeline request failed';
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -402,6 +429,12 @@ const Timeline: React.FC<TimelineProps> = ({
 
   const selectedPeriod = resolveSelectedPeriod(data, selectedNode);
   const selectedMeta = LEVEL_META[selectedPeriod.level];
+  const authority = data.authority;
+  const sourceSwitched =
+    authority && authority.requested_source !== authority.resolved_source ? authority : null;
+  const coverageText = sourceSwitched?.table_coverage
+    ? `${sourceSwitched.table_coverage.min_year}-${sourceSwitched.table_coverage.max_year}`
+    : null;
 
   const spanYears = Math.max(1, selectedPeriod.end_year - selectedPeriod.start_year + 1);
   const elapsedYears = Math.max(0, Math.min(data.year - selectedPeriod.start_year, spanYears));
@@ -828,6 +861,44 @@ const Timeline: React.FC<TimelineProps> = ({
           </div>
         </div>
       </div>
+
+      {sourceSwitched && (
+        <div className="mb-5 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-[11px] text-amber-100">
+          <div className="font-medium">
+            来源已自动切换：{sourceSwitched.requested_source} → {sourceSwitched.resolved_source}
+          </div>
+          <div className="mt-1 text-amber-100/90">
+            {describeFallbackReason(sourceSwitched.fallback_reason)}
+          </div>
+          {coverageText && (
+            <div className="mt-1 text-amber-100/80">canonical 覆盖：{coverageText}</div>
+          )}
+          {sourceSwitched.evidence_refs.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {sourceSwitched.evidence_refs.map((ref) =>
+                ref.url.startsWith('http') ? (
+                  <a
+                    key={`${ref.label}-${ref.url}`}
+                    href={ref.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded border border-amber-300/40 px-2 py-0.5 text-[10px] text-amber-50 hover:bg-amber-300/20 transition-colors"
+                  >
+                    {ref.label}
+                  </a>
+                ) : (
+                  <span
+                    key={`${ref.label}-${ref.url}`}
+                    className="rounded border border-amber-300/30 px-2 py-0.5 text-[10px] text-amber-100/80"
+                  >
+                    {ref.label}
+                  </span>
+                ),
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {showHelp && (
         <div

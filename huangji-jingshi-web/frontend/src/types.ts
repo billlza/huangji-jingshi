@@ -42,6 +42,26 @@ export interface TimelineData {
 
 export type TimelineLevel = 'yuan' | 'hui' | 'yun' | 'shi' | 'xun';
 
+export interface AuthorityEvidenceRef {
+  label: string;
+  url: string;
+}
+
+export interface AuthorityCoverage {
+  min_year: number;
+  max_year: number;
+  covered: boolean;
+}
+
+export interface AuthorityMeta {
+  requested_source: 'algorithm' | 'table';
+  resolved_source: 'algorithm' | 'table';
+  table_coverage?: AuthorityCoverage | null;
+  fallback_reason?: string | null;
+  authority_level: 'canonical' | 'derived';
+  evidence_refs: AuthorityEvidenceRef[];
+}
+
 export interface FortuneResponse {
   yuan: string;
   hui: string;
@@ -88,6 +108,7 @@ export interface FortuneResponse {
     xun_diff: boolean;
     note: string;
   };
+  authority?: AuthorityMeta;
 }
 
 export interface FortuneVariant {
@@ -148,4 +169,13 @@ export interface TimelineResponse extends TimelineData {
   variants?: FortuneResponse['variants'];
   diff?: FortuneResponse['diff'];
   mapping_record?: FortuneResponse['mapping_record'];
+  authority?: AuthorityMeta;
+  timeline_meta?: {
+    primary_source: 'algorithm' | 'table';
+    secondary_source?: 'algorithm' | 'table' | null;
+  };
+  timeline_variants?: {
+    algorithm: TimelineData;
+    table: TimelineData | null;
+  };
 }

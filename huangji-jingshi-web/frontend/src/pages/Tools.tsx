@@ -7,7 +7,7 @@ import FortuneCard from '../components/FortuneCard';
 import SkyCard from '../components/SkyCard';
 import StarField from '../components/StarField';
 import Timeline from '../components/Timeline';
-import type { CombinedResponse, SkyResponse } from '../types';
+import type { AuthorityMeta, CombinedResponse, SkyResponse } from '../types';
 import { resolveTimezoneOffset, resolveTimezoneOffsetSync } from '../utils/timezone';
 
 function safeDate(s: string | null | undefined) {
@@ -18,6 +18,30 @@ function safeDate(s: string | null | undefined) {
 function safeYear(s: string | null | undefined) {
   const d = new Date(s || '');
   return isNaN(d.getTime()) ? new Date().getFullYear() : d.getFullYear();
+}
+
+function describeFallbackReason(reason?: string | null) {
+  switch (reason) {
+    case 'table_not_covered':
+      return '所选年份超出 canonical table 覆盖范围，已切换为 algorithm 推导。';
+    default:
+      return '请求来源不可用，已自动切换为可追溯来源。';
+  }
+}
+
+async function readApiErrorMessage(response: Response) {
+  const fallback = `Request failed (${response.status})`;
+  try {
+    const payload = (await response.json()) as {
+      message?: string;
+      reason?: string;
+      error?: string;
+    };
+    return payload.message || payload.reason || payload.error || fallback;
+  } catch {
+    const text = await response.text();
+    return text || fallback;
+  }
 }
 
 export default function Tools() {
@@ -90,8 +114,7 @@ export default function Tools() {
           keepalive: true,
         });
         if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(errText || 'Server Error');
+          throw new Error(await readApiErrorMessage(res));
         }
         const jsonData = await res.json();
         setData(jsonData);
@@ -221,6 +244,12 @@ export default function Tools() {
   const cmpSkyData: SkyResponse | null = compareMode
     ? (compareData?.sky ?? ({ bodies: [], note: 'offline' } as SkyResponse))
     : null;
+  const authority: AuthorityMeta | null = data?.fortune?.authority ?? null;
+  const sourceSwitched =
+    authority && authority.requested_source !== authority.resolved_source ? authority : null;
+  const coverageText = sourceSwitched?.table_coverage
+    ? `${sourceSwitched.table_coverage.min_year}-${sourceSwitched.table_coverage.max_year}`
+    : null;
 
   return (
     <div className="relative min-h-screen bg-[#050508] text-white font-sans overflow-x-hidden">
@@ -312,6 +341,46 @@ export default function Tools() {
 
           {/* Right Column: Results */}
           <div className="lg:col-span-9 grid grid-cols-1 gap-6">
+            {sourceSwitched && (
+              <div className="glass-panel rounded-2xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-amber-100">
+                <div className="text-xs font-medium">
+                  数据来源已切换：{sourceSwitched.requested_source} → {sourceSwitched.resolved_source}
+                </div>
+                <div className="text-[11px] mt-1 text-amber-100/90">
+                  {describeFallbackReason(sourceSwitched.fallback_reason)}
+                </div>
+                {coverageText && (
+                  <div className="text-[11px] mt-1 text-amber-100/80">
+                    canonical 覆盖范围：{coverageText}
+                  </div>
+                )}
+                {sourceSwitched.evidence_refs.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {sourceSwitched.evidence_refs.map((ref) =>
+                      ref.url.startsWith('http') ? (
+                        <a
+                          key={`${ref.label}-${ref.url}`}
+                          href={ref.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] rounded border border-amber-300/40 px-2 py-0.5 hover:bg-amber-300/20 transition-colors"
+                        >
+                          {ref.label}
+                        </a>
+                      ) : (
+                        <span
+                          key={`${ref.label}-${ref.url}`}
+                          className="text-[10px] rounded border border-amber-300/30 px-2 py-0.5 text-amber-100/80"
+                        >
+                          {ref.label}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Timeline Navigation */}
             <div className="glass-panel rounded-3xl p-1 overflow-hidden">
               <Timeline
