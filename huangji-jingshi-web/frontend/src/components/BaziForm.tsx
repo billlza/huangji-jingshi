@@ -271,6 +271,37 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
         </select>
       </div>
 
+      {/* 数据来源（常驻可见） */}
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-xs text-gray-400">
+          <Settings2 className="w-3.5 h-3.5" />
+          数据来源
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { value: 'auto', label: '自动' },
+            { value: 'sxtwl', label: '权威源' },
+            { value: 'huangji_core', label: '推导源' },
+          ].map((opt) => {
+            const active = source === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setSource(opt.value as BaziSource)}
+                className={`py-2 rounded-lg text-xs border transition-all ${
+                  active
+                    ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-200'
+                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* 出生地点 */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -462,19 +493,6 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <div className="space-y-1.5">
-            <label className="text-[10px] text-gray-500 uppercase tracking-widest">数据来源</label>
-            <select
-              value={source}
-              onChange={(e) => setSource(e.target.value as BaziSource)}
-              className="w-full px-3 py-2 rounded-lg bg-black/40 text-white text-xs border border-white/10 focus:border-cyan-500/50 focus:outline-none"
-            >
-              <option value="auto">自动（优先权威源）</option>
-              <option value="sxtwl">权威源（sxtwl）</option>
-              <option value="huangji_core">推导源（huangji_core）</option>
-            </select>
-          </div>
-
           <div className="space-y-1.5">
             <label className="text-[10px] text-gray-500 uppercase tracking-widest">时辰口径</label>
             <select
