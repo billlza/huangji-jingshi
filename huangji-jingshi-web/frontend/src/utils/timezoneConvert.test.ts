@@ -98,26 +98,30 @@ describe('convertLocalToUTC', () => {
 
 describe('getTimezoneOffsetMinutes', () => {
   it('should return correct offset for Asia/Shanghai', () => {
-    expect(getTimezoneOffsetMinutes('Asia/Shanghai')).toBe(480);
+    expect(getTimezoneOffsetMinutes('Asia/Shanghai', '2025-12-18T10:00')).toBe(480);
   });
 
   it('should return correct offset for Asia/Tokyo', () => {
-    expect(getTimezoneOffsetMinutes('Asia/Tokyo')).toBe(540);
+    expect(getTimezoneOffsetMinutes('Asia/Tokyo', '2025-12-18T10:00')).toBe(540);
   });
 
-  it('should return correct offset for America/New_York', () => {
-    expect(getTimezoneOffsetMinutes('America/New_York')).toBe(-300);
+  it('should return DST-aware offset for America/New_York in summer', () => {
+    expect(getTimezoneOffsetMinutes('America/New_York', '2025-07-01T10:00')).toBe(-240);
   });
 
-  it('should return correct offset for America/Los_Angeles', () => {
-    expect(getTimezoneOffsetMinutes('America/Los_Angeles')).toBe(-480);
+  it('should return standard offset for America/New_York in winter', () => {
+    expect(getTimezoneOffsetMinutes('America/New_York', '2025-12-18T10:00')).toBe(-300);
   });
 
-  it('should return correct offset for Europe/London', () => {
-    expect(getTimezoneOffsetMinutes('Europe/London')).toBe(0);
+  it('should return DST-aware offset for Europe/London in summer', () => {
+    expect(getTimezoneOffsetMinutes('Europe/London', '2025-07-01T10:00')).toBe(60);
+  });
+
+  it('should return standard offset for America/Los_Angeles in winter', () => {
+    expect(getTimezoneOffsetMinutes('America/Los_Angeles', '2025-12-18T10:00')).toBe(-480);
   });
 
   it('should return default offset (480) for unknown timezone', () => {
-    expect(getTimezoneOffsetMinutes('Unknown/Timezone')).toBe(480);
+    expect(getTimezoneOffsetMinutes('Unknown/Timezone', '2025-12-18T10:00')).toBe(480);
   });
 });

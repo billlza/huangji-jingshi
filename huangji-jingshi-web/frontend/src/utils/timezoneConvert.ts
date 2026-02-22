@@ -6,6 +6,8 @@
  * 注意：与 JS Date.getTimezoneOffset() 符号相反！
  */
 
+import { DateTime } from 'luxon';
+
 /**
  * 将本地时间字符串根据指定时区偏移转换为 UTC ISO 字符串
  *
@@ -57,17 +59,22 @@ export function convertLocalToUTC(localDateTime: string, tzOffsetMinutes: number
  * tzOffsetMinutes: 东为正 UTC+8=+480, 西为负 UTC-5=-300
  * 注意：与 JS Date.getTimezoneOffset() 符号相反！
  */
-export function getTimezoneOffsetMinutes(timezoneName: string): number {
-  const timezoneOffsets: Record<string, number> = {
-    'Asia/Shanghai': 480, // UTC+8 = +480 分钟
-    'Asia/Tokyo': 540, // UTC+9 = +540 分钟
-    'Asia/Hong_Kong': 480, // UTC+8 = +480 分钟
-    'Asia/Taipei': 480, // UTC+8 = +480 分钟
-    'Asia/Singapore': 480, // UTC+8 = +480 分钟
-    'America/New_York': -300, // UTC-5 = -300 分钟 (EST，不考虑DST)
-    'America/Los_Angeles': -480, // UTC-8 = -480 分钟 (PST)
-    'Europe/London': 0, // UTC+0 = 0 分钟 (GMT)
-    'Europe/Paris': 60, // UTC+1 = +60 分钟 (CET)
-  };
-  return timezoneOffsets[timezoneName] ?? 480; // 默认北京时间
+export function getTimezoneOffsetMinutes(timezoneName: string, localDateTime?: string): number {
+  const fallbackOffset = 480;
+  const baseDateTime = localDateTime && localDateTime.trim().length > 0 ? localDateTime : undefined;
+
+  const target = baseDateTime
+    ? DateTime.fromISO(baseDateTime, { zone: timezoneName })
+    : DateTime.now().setZone(timezoneName);
+
+  if (target.isValid) {
+    return target.offset;
+  }
+
+  const fallback = DateTime.now().setZone('Asia/Shanghai');
+  if (fallback.isValid) {
+    return fallback.offset;
+  }
+
+  return fallbackOffset;
 }

@@ -179,3 +179,117 @@ export interface TimelineResponse extends TimelineData {
     table: TimelineData | null;
   };
 }
+
+export type BaziSource = 'auto' | 'sxtwl' | 'huangji_core';
+export type BaziTimeBasis = 'standard' | 'true_solar';
+export type BaziDayRollover = 'zi_chu_23' | 'zi_zheng_00';
+
+export interface BaziAuthorityEvidenceRef {
+  label: string;
+  url_or_id: string;
+  version?: string | null;
+}
+
+export interface BaziRuleProfile {
+  time_basis: BaziTimeBasis | string;
+  day_rollover: BaziDayRollover | string;
+  timezone?: string | null;
+  tz_offset_minutes: number;
+  longitude: number;
+}
+
+export interface BaziAuthorityMeta {
+  requested_source: BaziSource | string;
+  resolved_source: Exclude<BaziSource, 'auto'> | string;
+  fallback_reason?: string | null;
+  authority_level: 'canonical' | 'derived' | string;
+  rule_profile: BaziRuleProfile;
+  evidence_refs: BaziAuthorityEvidenceRef[];
+}
+
+export interface BaziVariantPayload {
+  available: boolean;
+  reason?: string | null;
+  payload?: BaziResponse | null;
+}
+
+export interface BaziHiddenStem {
+  gan: string;
+  gan_wuxing: string;
+  ten_god: string;
+  type: string;
+  energy: number;
+}
+
+export interface BaziPillar {
+  gan: string;
+  zhi: string;
+  gan_wuxing: string;
+  zhi_wuxing: string;
+  zhi_animal: string;
+  nayin: string;
+  gan_ten_god?: string;
+  hidden_stems?: BaziHiddenStem[];
+}
+
+export interface BaziDayunCycle {
+  cycle: number;
+  gan: string;
+  zhi: string;
+  gan_wuxing: string;
+  zhi_wuxing: string;
+  start_age: number;
+  end_age: number;
+  year_range: string;
+}
+
+export interface BaziXiaoyunCycle {
+  age: number;
+  year: number;
+  gan: string;
+  zhi: string;
+  gan_wuxing: string;
+  zhi_wuxing: string;
+}
+
+export interface BaziLiunianYear {
+  year: number;
+  age: number;
+  gan: string;
+  zhi: string;
+  gan_wuxing: string;
+  zhi_wuxing: string;
+  zodiac: string;
+}
+
+export interface BaziResponse {
+  year_pillar: BaziPillar;
+  month_pillar: BaziPillar;
+  day_pillar: BaziPillar;
+  hour_pillar: BaziPillar;
+  wuxing_analysis: {
+    day_master: string;
+    day_master_gan?: string;
+    day_master_strength: 'strong' | 'weak' | 'balanced';
+    wuxing_counts: Record<string, number>;
+    missing_wuxing: string[];
+  };
+  ten_gods_summary?: {
+    year_gan: string;
+    month_gan: string;
+    day_gan: string;
+    hour_gan: string;
+  };
+  dayun?: BaziDayunCycle[];
+  xiaoyun?: BaziXiaoyunCycle;
+  liunian?: BaziLiunianYear[];
+  gender: 'male' | 'female' | 'other' | string;
+  birth_year?: number;
+  solar_term?: string;
+  zodiac?: string;
+  authority?: BaziAuthorityMeta;
+  variants?: {
+    sxtwl: BaziVariantPayload;
+    huangji_core: BaziVariantPayload;
+  };
+}

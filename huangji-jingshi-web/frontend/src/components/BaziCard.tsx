@@ -5,7 +5,8 @@
 
 import { Sparkles } from 'lucide-react';
 import { useState } from 'react';
-import BaziChartView, { type BaziResult } from './BaziChartView';
+import type { BaziResponse } from '../types';
+import BaziChartView from './BaziChartView';
 import BaziForm, { type BaziParams } from './BaziForm';
 
 interface BaziCardProps {
@@ -19,7 +20,7 @@ interface BaziCardProps {
 
 export default function BaziCard({ observeParams }: BaziCardProps) {
   const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
-  const [result, setResult] = useState<BaziResult | null>(null);
+  const [result, setResult] = useState<BaziResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,16 +38,24 @@ export default function BaziCard({ observeParams }: BaziCardProps) {
         lat: params.lat.toString(),
         lon: params.lon.toString(),
         gender: params.gender,
+        source: params.source,
+        timeBasis: params.timeBasis,
+        dayRollover: params.dayRollover,
       });
 
       const res = await fetch(`${API_BASE}/api/bazi?${q}`);
 
       if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(errText || '排盘失败');
+        try {
+          const errJson = await res.json();
+          throw new Error(errJson.message || errJson.reason || errJson.error || '排盘失败');
+        } catch {
+          const errText = await res.text();
+          throw new Error(errText || '排盘失败');
+        }
       }
 
-      const data = await res.json();
+      const data = (await res.json()) as BaziResponse;
       setResult(data);
     } catch (err) {
       console.error('Bazi API Error:', err);

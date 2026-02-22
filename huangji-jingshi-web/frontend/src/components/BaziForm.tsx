@@ -3,8 +3,19 @@
  * 可以跟随"天机演算"的观测时间，或手动输入
  */
 
-import { Calendar, Globe, Link2, Link2Off, Loader2, LocateFixed, MapPin, User } from 'lucide-react';
+import {
+  Calendar,
+  Globe,
+  Link2,
+  Link2Off,
+  Loader2,
+  LocateFixed,
+  MapPin,
+  Settings2,
+  User,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
+import type { BaziDayRollover, BaziSource, BaziTimeBasis } from '../types';
 import { geocode, getIPLocation, reverseGeocode } from '../utils/geolocation';
 import { convertLocalToUTC, getTimezoneOffsetMinutes } from '../utils/timezoneConvert';
 
@@ -28,6 +39,9 @@ export interface BaziParams {
   lat: number;
   lon: number;
   gender: 'male' | 'female' | 'other';
+  source: BaziSource;
+  timeBasis: BaziTimeBasis;
+  dayRollover: BaziDayRollover;
 }
 
 // 常用时区列表
@@ -53,6 +67,9 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
   const [lat, setLat] = useState<number | ''>('');
   const [lon, setLon] = useState<number | ''>('');
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('male');
+  const [source, setSource] = useState<BaziSource>('auto');
+  const [timeBasis, setTimeBasis] = useState<BaziTimeBasis>('standard');
+  const [dayRollover, setDayRollover] = useState<BaziDayRollover>('zi_chu_23');
   const [locationName, setLocationName] = useState('');
 
   // 定位状态
@@ -70,7 +87,7 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
 
     let latitude: number | null = null;
     let longitude: number | null = null;
-    let source = '';
+    let locateSource = '';
 
     // 方法1: 尝试 GPS/BDS 定位
     if ('geolocation' in navigator) {
@@ -85,7 +102,7 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
 
         latitude = Number(position.coords.latitude.toFixed(4));
         longitude = Number(position.coords.longitude.toFixed(4));
-        source = 'GPS';
+        locateSource = 'GPS';
 
         console.log('✅ GPS定位成功:', latitude, longitude);
       } catch (gpsError) {
@@ -101,7 +118,7 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
         if (location) {
           latitude = Number(location.latitude.toFixed(4));
           longitude = Number(location.longitude.toFixed(4));
-          source = 'IP';
+          locateSource = 'IP';
 
           // IP定位直接返回城市名
           setLat(latitude);
@@ -126,7 +143,7 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
         setLocationName(resolvedLocationName);
       } else {
         // 如果逆地理编码失败，显示来源标识
-        setLocationName(source === 'GPS' ? 'GPS定位' : 'IP定位');
+        setLocationName(locateSource === 'GPS' ? 'GPS定位' : 'IP定位');
       }
 
       setLocating(false);
@@ -158,10 +175,13 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    const datetimeForOffset = followObserve
+      ? formatDatetimeLocal(observeParams.datetime)
+      : localDatetime;
     // 获取时区偏移（分钟）
     // tzOffsetMinutes: 东为正 UTC+8=+480, 西为负 UTC-5=-300
     // 注意：不要使用 getTimezoneOffset() 直接赋值（符号相反）
-    const tzOffsetMinutes = getTimezoneOffsetMinutes(timezone);
+    const tzOffsetMinutes = getTimezoneOffsetMinutes(timezone, datetimeForOffset);
 
     let dt: string;
     if (followObserve) {
@@ -179,6 +199,9 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
       lat: followObserve ? observeParams.lat : lat || 39.9042, // 默认北京
       lon: followObserve ? observeParams.lon : lon || 116.4074,
       gender,
+      source,
+      timeBasis,
+      dayRollover,
     });
   };
 
@@ -428,6 +451,53 @@ export default function BaziForm({ observeParams, onSubmit, isLoading }: BaziFor
               {opt.label}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* 口径设置 */}
+      <div className="space-y-3 p-3 rounded-xl bg-white/5 border border-white/10">
+        <div className="flex items-center gap-2 text-xs text-gray-400">
+          <Settings2 className="w-3.5 h-3.5" />
+          口径设置
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="space-y-1.5">
+            <label className="text-[10px] text-gray-500 uppercase tracking-widest">数据来源</label>
+            <select
+              value={source}
+              onChange={(e) => setSource(e.target.value as BaziSource)}
+              className="w-full px-3 py-2 rounded-lg bg-black/40 text-white text-xs border border-white/10 focus:border-cyan-500/50 focus:outline-none"
+            >
+              <option value="auto">自动（优先权威源）</option>
+              <option value="sxtwl">权威源（sxtwl）</option>
+              <option value="huangji_core">推导源（huangji_core）</option>
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] text-gray-500 uppercase tracking-widest">时辰口径</label>
+            <select
+              value={timeBasis}
+              onChange={(e) => setTimeBasis(e.target.value as BaziTimeBasis)}
+              className="w-full px-3 py-2 rounded-lg bg-black/40 text-white text-xs border border-white/10 focus:border-cyan-500/50 focus:outline-none"
+            >
+              <option value="standard">标准时（默认）</option>
+              <option value="true_solar">真太阳时</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[10px] text-gray-500 uppercase tracking-widest">换日规则</label>
+          <select
+            value={dayRollover}
+            onChange={(e) => setDayRollover(e.target.value as BaziDayRollover)}
+            className="w-full px-3 py-2 rounded-lg bg-black/40 text-white text-xs border border-white/10 focus:border-cyan-500/50 focus:outline-none"
+          >
+            <option value="zi_chu_23">子初（23:00）换日</option>
+            <option value="zi_zheng_00">子正（00:00）换日</option>
+          </select>
         </div>
       </div>
 

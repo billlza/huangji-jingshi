@@ -6,99 +6,35 @@
 import { ChevronRight, Info, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { BaziResponse } from '../types';
 
-export interface BaziResult {
-  // 四柱
-  year_pillar: Pillar;
-  month_pillar: Pillar;
-  day_pillar: Pillar; // 日主
-  hour_pillar: Pillar;
-
-  // 五行分析
-  wuxing_analysis: {
-    day_master: string; // 日主五行，如 "阳木"
-    day_master_gan?: string; // 日主天干，如 "甲"
-    day_master_strength: 'strong' | 'weak' | 'balanced'; // 旺/弱/中和
-    wuxing_counts: Record<string, number>; // 五行统计
-    missing_wuxing: string[]; // 缺失的五行
-  };
-
-  // 十神分析
-  ten_gods_summary?: {
-    year_gan: string;
-    month_gan: string;
-    day_gan: string;
-    hour_gan: string;
-  };
-
-  // 大运
-  dayun?: DayunCycle[];
-
-  // 小运
-  xiaoyun?: XiaoyunCycle;
-
-  // 流年
-  liunian?: LiunianYear[];
-
-  // 其他信息
-  gender: 'male' | 'female' | 'other';
-  birth_year?: number;
-  solar_term?: string;
-  zodiac?: string;
-}
-
-interface Pillar {
-  gan: string; // 天干
-  zhi: string; // 地支
-  gan_wuxing: string; // 天干五行
-  zhi_wuxing: string; // 地支五行
-  zhi_animal: string; // 生肖
-  nayin: string; // 纳音
-  gan_ten_god?: string; // 天干十神
-  hidden_stems?: HiddenStem[]; // 地支藏干
-}
-
-interface HiddenStem {
-  gan: string;
-  gan_wuxing: string;
-  ten_god: string;
-  type: string; // 余气、中气、本气
-  energy: number; // 能量百分比
-}
-
-interface DayunCycle {
-  cycle: number;
-  gan: string;
-  zhi: string;
-  gan_wuxing: string;
-  zhi_wuxing: string;
-  start_age: number;
-  end_age: number;
-  year_range: string;
-}
-
-interface XiaoyunCycle {
-  age: number;
-  year: number;
-  gan: string;
-  zhi: string;
-  gan_wuxing: string;
-  zhi_wuxing: string;
-}
-
-interface LiunianYear {
-  year: number;
-  age: number;
-  gan: string;
-  zhi: string;
-  gan_wuxing: string;
-  zhi_wuxing: string;
-  zodiac: string;
-}
+export type BaziResult = BaziResponse;
 
 interface BaziChartViewProps {
   data: BaziResult | null;
   isLoading: boolean;
+}
+
+function formatSourceLabel(source: string): string {
+  if (source === 'sxtwl') return '权威源 sxtwl';
+  if (source === 'huangji_core') return '推导源 huangji_core';
+  if (source === 'auto') return '自动';
+  return source;
+}
+
+function describeFallbackReason(reason?: string | null): string {
+  switch (reason) {
+    case 'primary_unavailable':
+      return '权威主源当前不可用，已自动切换到推导源。';
+    case 'primary_timeout':
+      return '权威主源请求超时，已自动切换到推导源。';
+    case 'primary_runtime_error':
+      return '权威主源运行异常，已自动切换到推导源。';
+    case 'primary_out_of_supported_range':
+      return '权威主源暂不支持该时间范围，已自动切换到推导源。';
+    default:
+      return '主源不可用，已自动切换到次源。';
+  }
 }
 
 // 五行颜色映射
@@ -214,6 +150,12 @@ export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
     );
   }
 
+  const authority = data.authority;
+  const sourceSwitched =
+    authority && authority.requested_source !== authority.resolved_source ? authority : null;
+  const ruleProfile = authority?.rule_profile;
+  const evidenceRefs = authority?.evidence_refs ?? [];
+
   const pillars = [
     { label: '年柱', data: data.year_pillar, isMain: false },
     { label: '月柱', data: data.month_pillar, isMain: false },
@@ -235,6 +177,48 @@ export default function BaziChartView({ data, isLoading }: BaziChartViewProps) {
 
   return (
     <div className="space-y-6">
+      {authority && (
+        <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] text-gray-500 uppercase tracking-widest">来源</span>
+            <span
+              className={`text-[11px] font-medium ${
+                authority.authority_level === 'canonical' ? 'text-emerald-300' : 'text-amber-300'
+              }`}
+            >
+              {formatSourceLabel(authority.resolved_source)}
+            </span>
+          </div>
+          {ruleProfile && (
+            <div className="text-[10px] text-gray-400">
+              规则：{ruleProfile.time_basis} / {ruleProfile.day_rollover}
+            </div>
+          )}
+          {sourceSwitched && (
+            <div className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-2.5 py-2 text-[10px] text-amber-100">
+              <div>
+                已切源：{formatSourceLabel(sourceSwitched.requested_source)} →{' '}
+                {formatSourceLabel(sourceSwitched.resolved_source)}
+              </div>
+              <div className="mt-1">{describeFallbackReason(sourceSwitched.fallback_reason)}</div>
+            </div>
+          )}
+          {evidenceRefs.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {evidenceRefs.map((item) => (
+                <span
+                  key={`${item.label}-${item.url_or_id}`}
+                  className="text-[9px] px-2 py-0.5 rounded border border-white/15 text-gray-300"
+                  title={item.url_or_id}
+                >
+                  {item.label}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 四柱卡片 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         {pillars.map((pillar, idx) => {
