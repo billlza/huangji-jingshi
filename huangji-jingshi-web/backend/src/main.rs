@@ -5,7 +5,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use chrono::{Datelike, TimeZone, Utc};
+use chrono::{DateTime, Datelike, FixedOffset, NaiveDateTime, TimeZone, Utc};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -21,12 +21,13 @@ use huangji_core::calendar::ganzhi::{
     calc_bazi_pillars, calc_dayun_start_age, DIZHI, GAN_WUXING, NAYIN, SHENGXIAO, TIANGAN,
     ZHI_WUXING,
 };
-use huangji_core::calendar::time_rule::{datetime_to_hj_year, to_rule_datetime, YearStartMode};
+use huangji_core::calendar::time_rule::{utc_to_hj_year, YearStartMode};
 // use huangji_core::algorithm::year_to_acc;
 use huangji_core::algorithm;
 use huangji_core::fortune::{compute_fortune, CalcMode, FortuneRequest, PrimaryMode};
 use huangji_core::huangji_table;
 use huangji_core::sky::{compute_sky, SkyRequest};
+use huangji_core::table_engine;
 
 // 静态数据缓存
 static TIMELINE_DATA: Lazy<RwLock<HashMap<i32, serde_json::Value>>> =
@@ -467,8 +468,88 @@ fn parse_year_start_mode(input: Option<&str>) -> YearStartMode {
     }
 }
 
+fn parse_datetime_or_bad_request(
+    raw: &str,
+    tz_offset_minutes: i32,
+) -> Result<DateTime<Utc>, (StatusCode, Json<serde_json::Value>)> {
+    if let Ok(dt) = DateTime::parse_from_rfc3339(raw) {
+        return Ok(dt.with_timezone(&Utc));
+    }
+
+    let naive = NaiveDateTime::parse_from_str(raw, "%Y-%m-%dT%H:%M:%S")
+        .or_else(|_| NaiveDateTime::parse_from_str(raw, "%Y-%m-%dT%H:%M"));
+
+    if let Ok(naive) = naive {
+        let Some(offset) = FixedOffset::east_opt(tz_offset_minutes * 60) else {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "error": "invalid_tz_offset",
+                    "message": format!(
+                        "invalid tzOffsetMinutes '{}' for datetime '{}'",
+                        tz_offset_minutes, raw
+                    ),
+                })),
+            ));
+        };
+
+        let Some(local_dt) = offset.from_local_datetime(&naive).single() else {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "error": "invalid_local_datetime",
+                    "message": format!(
+                        "cannot resolve local datetime '{}' with tzOffsetMinutes '{}'",
+                        raw, tz_offset_minutes
+                    ),
+                })),
+            ));
+        };
+
+        return Ok(local_dt.with_timezone(&Utc));
+    }
+
+    Err((
+        StatusCode::BAD_REQUEST,
+        Json(json!({
+            "error": "invalid_datetime",
+            "message": format!(
+                "invalid datetime '{}', expected RFC3339 or local ISO format (YYYY-MM-DDTHH:MM[:SS])",
+                raw
+            ),
+        })),
+    ))
+}
+
+fn parse_query_datetime(
+    raw: &str,
+    tz_offset_minutes: i32,
+) -> Result<DateTime<Utc>, (StatusCode, Json<serde_json::Value>)> {
+    let parsed = parse_datetime_or_bad_request(raw, tz_offset_minutes);
+    if let Err((status, body)) = &parsed {
+        tracing::warn!(
+            "❌ 日期时间解析失败: datetime={}, tzOffsetMinutes={}, status={}, error={:?}",
+            raw,
+            tz_offset_minutes,
+            status,
+            body.0
+        );
+    }
+    parsed
+}
+
+fn source_label(primary: PrimaryMode) -> &'static str {
+    if matches!(primary, PrimaryMode::Table) {
+        "table"
+    } else {
+        "algorithm"
+    }
+}
+
 // 核心 API - 获取天象和运势数据
-async fn get_sky_and_fortune(Query(params): Query<SkyFortuneQuery>) -> impl IntoResponse {
+async fn get_sky_and_fortune(
+    Query(params): Query<SkyFortuneQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let tz_offset_minutes = params.tz_offset_minutes.unwrap_or(480);
     let lat = params.lat.unwrap_or(39.9);
     let lon = params.lon.unwrap_or(116.4);
@@ -490,24 +571,7 @@ async fn get_sky_and_fortune(Query(params): Query<SkyFortuneQuery>) -> impl Into
     );
 
     // 解析输入时间：优先 RFC3339（带 Z 或 offset），否则按“本地时间 + tzOffsetMinutes”解释
-    let datetime_utc = if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&params.datetime) {
-        dt.with_timezone(&Utc)
-    } else if let Ok(naive) =
-        chrono::NaiveDateTime::parse_from_str(&params.datetime, "%Y-%m-%dT%H:%M:%S")
-    {
-        // 这里将“无时区字符串”按用户传入 tzOffsetMinutes 解释为本地时间，再换算到 UTC
-        if let Some(offset) = chrono::FixedOffset::east_opt(tz_offset_minutes * 60) {
-            if let Some(local_dt) = offset.from_local_datetime(&naive).single() {
-                local_dt.with_timezone(&Utc)
-            } else {
-                Utc::now()
-            }
-        } else {
-            Utc::now()
-        }
-    } else {
-        Utc::now()
-    };
+    let datetime_utc = parse_query_datetime(&params.datetime, tz_offset_minutes)?;
 
     let sky_resp = compute_sky(&SkyRequest {
         datetime: datetime_utc,
@@ -527,10 +591,10 @@ async fn get_sky_and_fortune(Query(params): Query<SkyFortuneQuery>) -> impl Into
         primary: Some(primary),
     });
 
-    Json(json!({
+    Ok(Json(json!({
         "sky": sky_resp,
         "fortune": fortune_resp
-    }))
+    })))
 }
 
 // 获取历史相关事件 - 返回纯数组，不是对象
@@ -597,37 +661,21 @@ async fn get_mapping(Query(params): Query<MappingQuery>) -> impl IntoResponse {
 }
 
 // 获取时间线
-async fn get_timeline(Query(params): Query<TimelineQuery>) -> impl IntoResponse {
+async fn get_timeline(
+    Query(params): Query<TimelineQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let tz_offset_minutes = params.tz_offset_minutes.unwrap_or(480);
     let lon = params.lon.unwrap_or(116.4);
     let mode = parse_calc_mode(params.mode.as_deref());
     let primary = parse_primary_mode(params.primary.as_deref());
     let year_start = parse_year_start_mode(params.year_start.as_deref());
 
-    let datetime_utc = if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&params.datetime) {
-        dt.with_timezone(&Utc)
-    } else if let Ok(naive) =
-        chrono::NaiveDateTime::parse_from_str(&params.datetime, "%Y-%m-%dT%H:%M:%S")
-    {
-        if let Some(offset) = chrono::FixedOffset::east_opt(tz_offset_minutes * 60) {
-            if let Some(local_dt) = offset.from_local_datetime(&naive).single() {
-                local_dt.with_timezone(&Utc)
-            } else {
-                Utc::now()
-            }
-        } else {
-            Utc::now()
-        }
-    } else {
-        Utc::now()
-    };
+    let datetime_utc = parse_query_datetime(&params.datetime, tz_offset_minutes)?;
 
-    let rule_dt = to_rule_datetime(datetime_utc, tz_offset_minutes, lon, false);
-    let hj_year = datetime_to_hj_year(rule_dt, year_start);
+    let fallback_hj_year = utc_to_hj_year(datetime_utc, tz_offset_minutes, lon, false, year_start);
 
     tracing::debug!(
-        "📅 查询时间线: hj_year={}, mode={:?}, primary={:?}, year_start={:?}",
-        hj_year,
+        "📅 查询时间线: mode={:?}, primary={:?}, year_start={:?}",
         mode,
         primary,
         year_start
@@ -643,27 +691,60 @@ async fn get_timeline(Query(params): Query<TimelineQuery>) -> impl IntoResponse 
         primary: Some(primary),
     });
 
-    let mut timeline = algorithm::get_timeline_info(hj_year);
-    timeline.current.year_gua = fortune.hexagram_major.clone();
-    timeline.current.yuan.name = fortune.yuan.clone();
-    timeline.current.hui.name = fortune.hui.clone();
-    timeline.current.yun.name = fortune.yun.clone();
-    timeline.current.shi.name = fortune.shi.clone();
-    timeline.current.xun.name = fortune.xun.clone();
+    let hj_year = fortune
+        .calc_meta
+        .as_ref()
+        .map(|meta| meta.hj_year)
+        .unwrap_or(fallback_hj_year);
 
-    Json(json!({
+    tracing::debug!("📅 时间线经世年: {}", hj_year);
+
+    let algorithm_timeline = algorithm::get_timeline_info(hj_year);
+    let table_timeline = table_engine::get_timeline_info(hj_year);
+    let resolved_primary = fortune
+        .calc_meta
+        .as_ref()
+        .map(|meta| meta.primary)
+        .unwrap_or(PrimaryMode::Algorithm);
+
+    let primary_timeline = if matches!(resolved_primary, PrimaryMode::Table) {
+        table_timeline
+            .clone()
+            .unwrap_or_else(|| algorithm_timeline.clone())
+    } else {
+        algorithm_timeline.clone()
+    };
+
+    let secondary_source = if matches!(resolved_primary, PrimaryMode::Table) {
+        Some("algorithm")
+    } else if table_timeline.is_some() {
+        Some("table")
+    } else {
+        None
+    };
+
+    Ok(Json(json!({
         "year": hj_year,
-        "current": timeline.current,
-        "yuan_list": timeline.yuan_list,
-        "hui_list": timeline.hui_list,
-        "yun_list": timeline.yun_list,
-        "shi_list": timeline.shi_list,
-        "xun_list": timeline.xun_list,
+        "current": primary_timeline.current,
+        "yuan_list": primary_timeline.yuan_list,
+        "hui_list": primary_timeline.hui_list,
+        "yun_list": primary_timeline.yun_list,
+        "shi_list": primary_timeline.shi_list,
+        "xun_list": primary_timeline.xun_list,
         "calc_meta": fortune.calc_meta,
         "variants": fortune.variants,
         "diff": fortune.diff,
-        "mapping_record": fortune.mapping_record
-    }))
+        "mapping_record": fortune.mapping_record,
+        "authority": fortune.authority,
+        "timeline_meta": {
+            "primary_source": source_label(resolved_primary),
+            "secondary_source": secondary_source,
+        },
+        "timeline_variants": {
+            "algorithm": algorithm_timeline,
+            "table": table_timeline
+        }
+    })))
 }
 
 // 获取历史数据 - 返回数组格式
@@ -1351,7 +1432,7 @@ async fn get_geoip() -> impl IntoResponse {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_events_array, index_events_by_year};
+    use super::{extract_events_array, index_events_by_year, parse_query_datetime};
     use serde_json::json;
 
     #[test]
@@ -1424,5 +1505,17 @@ mod tests {
                 .map(std::vec::Vec::len),
             Some(1)
         );
+    }
+
+    #[test]
+    fn parse_query_datetime_accepts_local_iso_with_offset() {
+        let parsed = parse_query_datetime("2026-06-01T08:00:00", 480).expect("valid datetime");
+        assert_eq!(parsed.to_rfc3339(), "2026-06-01T00:00:00+00:00");
+    }
+
+    #[test]
+    fn parse_query_datetime_rejects_invalid_input() {
+        let parsed = parse_query_datetime("not-a-date", 480);
+        assert!(parsed.is_err());
     }
 }
