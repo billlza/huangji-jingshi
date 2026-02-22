@@ -3,6 +3,7 @@ import json
 import math
 import sys
 from datetime import datetime, timedelta, timezone
+from importlib import metadata as importlib_metadata
 
 try:
     from zoneinfo import ZoneInfo
@@ -61,6 +62,13 @@ def hour_to_zhi_index(hour_float):
     return int(math.floor((hour_float + 1.0) / 2.0)) % 12
 
 
+def get_sxtwl_version():
+    try:
+        return importlib_metadata.version("sxtwl")
+    except Exception:
+        return None
+
+
 def run():
     if "--health" in sys.argv:
         try:
@@ -70,7 +78,7 @@ def run():
                 {
                     "ok": True,
                     "engine": "sxtwl",
-                    "version": getattr(sxtwl, "__version__", None),
+                    "version": get_sxtwl_version(),
                 }
             )
         except ModuleNotFoundError:
@@ -130,7 +138,9 @@ def run():
         day_gz = day_day.getDayGZ()
 
         hour_int = int(math.floor(hour_float)) % 24
-        hour_gz = sxtwl.getShiGz(day_gz.tg, hour_int)
+        # We resolve day rollover explicitly via day_rollover/day_date above,
+        # so disable sxtwl's internal early/late-zi split to avoid double-shifting.
+        hour_gz = sxtwl.getShiGz(day_gz.tg, hour_int, False)
 
         solar_term_name = None
         try:
@@ -144,7 +154,7 @@ def run():
             {
                 "ok": True,
                 "engine": "sxtwl",
-                "engine_version": getattr(sxtwl, "__version__", None),
+                "engine_version": get_sxtwl_version(),
                 "year": {"tg": int(year_gz.tg), "dz": int(year_gz.dz)},
                 "month": {"tg": int(month_gz.tg), "dz": int(month_gz.dz)},
                 "day": {"tg": int(day_gz.tg), "dz": int(day_gz.dz)},
