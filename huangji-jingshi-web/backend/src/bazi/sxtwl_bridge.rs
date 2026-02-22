@@ -61,6 +61,14 @@ fn python_binary() -> String {
     std::env::var("BAZI_PYTHON_BIN").unwrap_or_else(|_| "python3".to_string())
 }
 
+fn sxtwl_timeout_ms() -> u64 {
+    std::env::var("BAZI_SXTWL_TIMEOUT_MS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|value| *value >= 200 && *value <= 10_000)
+        .unwrap_or(2_000)
+}
+
 fn map_script_failure(code: Option<&str>, message: String) -> BridgeFailure {
     match code.unwrap_or("runtime_error") {
         "module_not_available" => BridgeFailure {
@@ -160,11 +168,12 @@ pub async fn compute_with_sxtwl(ctx: &BaziRequestContext) -> Result<BridgeSucces
             })?;
     }
 
-    let output = timeout(Duration::from_millis(800), child.wait_with_output())
+    let timeout_ms = sxtwl_timeout_ms();
+    let output = timeout(Duration::from_millis(timeout_ms), child.wait_with_output())
         .await
         .map_err(|_| BridgeFailure {
             reason: "primary_timeout".to_string(),
-            detail: "sxtwl execution exceeded 800ms timeout".to_string(),
+            detail: format!("sxtwl execution exceeded {}ms timeout", timeout_ms),
         })?
         .map_err(|error| BridgeFailure {
             reason: "primary_runtime_error".to_string(),
