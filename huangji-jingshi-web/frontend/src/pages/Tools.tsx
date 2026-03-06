@@ -344,7 +344,8 @@ export default function Tools() {
             {sourceSwitched && (
               <div className="glass-panel rounded-2xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-amber-100">
                 <div className="text-xs font-medium">
-                  数据来源已切换：{sourceSwitched.requested_source} → {sourceSwitched.resolved_source}
+                  数据来源已切换：{sourceSwitched.requested_source} →{' '}
+                  {sourceSwitched.resolved_source}
                 </div>
                 <div className="text-[11px] mt-1 text-amber-100/90">
                   {describeFallbackReason(sourceSwitched.fallback_reason)}
