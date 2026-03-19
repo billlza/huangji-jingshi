@@ -16,5 +16,7 @@ services:
     buildCommand: npm ci && npm run build
     publishPath: dist
     envVars:
+      - key: NODE_VERSION
+        value: "22.12.0"
       - key: VITE_BACKEND_URL
         value: https://hjjs-backend.onrender.com

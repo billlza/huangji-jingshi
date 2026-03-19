@@ -1,11 +1,11 @@
 # React + TypeScript + Vite
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This frontend uses the official `vite@8` + `@vitejs/plugin-react@6` stack with React 19 and TypeScript.
 
-Currently, two official plugins are available:
+Fast Refresh works out of the box. If you need custom Babel transforms or React Compiler integration, follow the upstream plugin guidance and add the extra Babel plugin explicitly instead of relying on built-in Babel behavior.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) is the default React integration for Vite
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) is an alternative SWC-based integration
 
 ## React Compiler
 
