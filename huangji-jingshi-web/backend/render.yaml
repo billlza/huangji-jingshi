@@ -3,11 +3,12 @@ services:
     name: hjjs-backend
     env: rust
     plan: free
-    buildCommand: cargo build --release --bin backend
+    rootDir: huangji-jingshi-web
+    buildCommand: python3 -m venv /opt/render/project/src/.venv && /opt/render/project/src/.venv/bin/pip install --upgrade pip && /opt/render/project/src/.venv/bin/pip install sxtwl && cargo build --release
     startCommand: ./target/release/backend
     healthCheckPath: /health
     envVars:
       - key: RUST_LOG
         value: info
-      - key: PORT
-        sync: false
+      - key: BAZI_PYTHON_BIN
+        value: /opt/render/project/src/.venv/bin/python

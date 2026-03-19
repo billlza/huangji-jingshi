@@ -1,22 +1,16 @@
+# Render 部署配置 - 仅后端服务（前端已部署在 Vercel）
+
 services:
   - type: web
     name: hjjs-backend
-    rootDir: huangji-jingshi-web/backend
-    buildCommand: npm install
-    startCommand: npm start
+    env: rust
+    plan: free
+    rootDir: huangji-jingshi-web
+    buildCommand: python3 -m venv /opt/render/project/src/.venv && /opt/render/project/src/.venv/bin/pip install --upgrade pip && /opt/render/project/src/.venv/bin/pip install sxtwl && cargo build --release
+    startCommand: ./target/release/backend
+    healthCheckPath: /health
     envVars:
-      - key: NODE_VERSION
-        value: "18"
       - key: RUST_LOG
         value: info
-
-  - type: static_site
-    name: hjjs-frontend
-    rootDir: huangji-jingshi-web/frontend
-    buildCommand: npm ci && npm run build
-    publishPath: dist
-    envVars:
-      - key: NODE_VERSION
-        value: "22.12.0"
-      - key: VITE_BACKEND_URL
-        value: https://hjjs-backend.onrender.com
+      - key: BAZI_PYTHON_BIN
+        value: /opt/render/project/src/.venv/bin/python
